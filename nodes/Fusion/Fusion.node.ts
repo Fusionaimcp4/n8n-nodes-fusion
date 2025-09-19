@@ -6,8 +6,6 @@ import type {
 	IRequestOptions,
 } from 'n8n-workflow';
 
-import { NodeConnectionType } from 'n8n-workflow';
-
 export class Fusion implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Fusion AI',
@@ -20,8 +18,8 @@ export class Fusion implements INodeType {
 		defaults: {
 			name: 'Fusion AI',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		inputs: ['main'] as any,
+		outputs: ['main'] as any,
 		credentials: [
 			{
 				name: 'fusionApi',

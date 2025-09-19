@@ -31,7 +31,7 @@
   "packageManager": "pnpm@9.1.0",
   "main": "dist/nodes/Fusion/Fusion.node.js",
   "scripts": {
-    "build": "tsc && gulp build:icons",
+    "build": "tsc",
     "dev": "tsc --watch",
     "format": "prettier nodes credentials --write",
     "lint": "eslint nodes credentials package.json",
