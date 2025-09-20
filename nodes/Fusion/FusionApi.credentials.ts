@@ -25,10 +25,20 @@ export class FusionApi implements ICredentialType {
 		{
 			displayName: 'Base URL',
 			name: 'baseUrl',
-			type: 'string',
-			default: 'https://api.mcp4.ai',
+			type: 'options',
+			options: [
+				{
+					name: 'api.fusionai.com (Recommended)',
+					value: 'https://api.fusionai.com/v1',
+				},
+				{
+					name: 'api.mcp4.ai',
+					value: 'https://api.mcp4.ai',
+				},
+			],
+			default: 'https://api.fusionai.com/v1',
 			required: false,
-			description: 'Base URL for the Fusion AI API (leave default unless using custom endpoint)',
+			description: 'Base URL for the Fusion AI API',
 		},
 	];
 

@@ -315,21 +315,42 @@ class Fusion {
                         const model = this.getNodeParameter('model', i);
                         const mode = this.getNodeParameter('mode', i);
                         const image = this.getNodeParameter('image', i);
-                        const body = {
-                            prompt,
-                            provider,
-                            mode,
-                        };
-                        if (model) {
-                            body.model = model;
+                        const credentials = await this.getCredentials('fusionApi');
+                        const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
+                        // Handle different request body formats based on base URL
+                        let body;
+                        if (typeof baseUrl === 'string' && baseUrl.includes('api.fusionai.com')) {
+                            // OpenAI-compatible format for api.fusionai.com
+                            body = {
+                                messages: [
+                                    {
+                                        role: 'user',
+                                        content: prompt,
+                                    },
+                                ],
+                                provider: provider,
+                                model: model || mode,
+                            };
+                        }
+                        else {
+                            // Original format for api.mcp4.ai
+                            body = {
+                                prompt,
+                                provider,
+                                mode,
+                            };
+                            if (model) {
+                                body.model = model;
+                            }
                         }
                         if (image) {
                             body.image = image;
                         }
-                        const credentials = await this.getCredentials('fusionApi');
-                        const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
-                        // Use correct endpoint path
-                        const endpoint = '/chat';
+                        // Handle different API endpoints based on base URL
+                        let endpoint = '/chat/completions';
+                        if (typeof baseUrl === 'string' && baseUrl.includes('api.mcp4.ai')) {
+                            endpoint = '/api/chat';
+                        }
                         const options = {
                             method: 'POST',
                             url: `${baseUrl}${endpoint}`,

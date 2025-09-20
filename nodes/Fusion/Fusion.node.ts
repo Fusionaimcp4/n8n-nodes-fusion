@@ -328,25 +328,45 @@ export class Fusion implements INodeType {
 						const mode = this.getNodeParameter('mode', i) as string;
 						const image = this.getNodeParameter('image', i) as string;
 
-						const body: any = {
-							prompt,
-							provider,
-							mode,
-						};
+						const credentials = await this.getCredentials('fusionApi');
+						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
 
-						if (model) {
-							body.model = model;
+						// Handle different request body formats based on base URL
+						let body: any;
+						if (typeof baseUrl === 'string' && baseUrl.includes('api.fusionai.com')) {
+							// OpenAI-compatible format for api.fusionai.com
+							body = {
+								messages: [
+									{
+										role: 'user',
+										content: prompt,
+									},
+								],
+								provider: provider,
+								model: model || mode,
+							};
+						} else {
+							// Original format for api.mcp4.ai
+							body = {
+								prompt,
+								provider,
+								mode,
+							};
+							
+							if (model) {
+								body.model = model;
+							}
 						}
 
 						if (image) {
 							body.image = image;
 						}
-
-						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
 						
-						// Use correct endpoint path
-						const endpoint = '/chat';
+						// Handle different API endpoints based on base URL
+						let endpoint = '/chat/completions';
+						if (typeof baseUrl === 'string' && baseUrl.includes('api.mcp4.ai')) {
+							endpoint = '/api/chat';
+						}
 						
 						const options: IRequestOptions = {
 							method: 'POST',
