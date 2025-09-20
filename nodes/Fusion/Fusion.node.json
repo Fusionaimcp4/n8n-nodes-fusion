@@ -6,10 +6,9 @@
   "type": "node",
   "category": "AI",
   "group": ["ai"],
-  "icon": "fusion.svg",
+  "icon": "file:fusion.svg",
   "codex": {
-    "categories": ["Language Models"],
-    "subtype": "llm"
+    "categories": ["Language Models"]
   },
   "defaults": {
     "name": "Fusion AI"

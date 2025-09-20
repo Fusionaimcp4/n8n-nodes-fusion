@@ -7,15 +7,18 @@ class Fusion {
             displayName: 'Fusion AI',
             name: 'fusion',
             icon: 'file:fusion.svg',
-            group: ['transform'],
+            group: ['ai'],
             version: 1,
+            codex: {
+                categories: ['Language Models'],
+            },
             subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
             description: 'Interact with Fusion AI via NeuroSwitch multi-provider orchestration',
             defaults: {
                 name: 'Fusion AI',
             },
-            inputs: ['main'],
-            outputs: ['main'],
+            inputs: ["main" /* NodeConnectionType.Main */],
+            outputs: ["main" /* NodeConnectionType.Main */],
             credentials: [
                 {
                     name: 'fusionApi',
@@ -316,41 +319,21 @@ class Fusion {
                         const mode = this.getNodeParameter('mode', i);
                         const image = this.getNodeParameter('image', i);
                         const credentials = await this.getCredentials('fusionApi');
-                        const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
-                        // Handle different request body formats based on base URL
-                        let body;
-                        if (typeof baseUrl === 'string' && baseUrl.includes('api.fusionai.com')) {
-                            // OpenAI-compatible format for api.fusionai.com
-                            body = {
-                                messages: [
-                                    {
-                                        role: 'user',
-                                        content: prompt,
-                                    },
-                                ],
-                                provider: provider,
-                                model: model || mode,
-                            };
-                        }
-                        else {
-                            // Original format for api.mcp4.ai
-                            body = {
-                                prompt,
-                                provider,
-                                mode,
-                            };
-                            if (model) {
-                                body.model = model;
-                            }
+                        const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
+                        // Use correct format for api.mcp4.ai
+                        const body = {
+                            prompt,
+                            provider,
+                            mode,
+                        };
+                        if (model) {
+                            body.model = model;
                         }
                         if (image) {
                             body.image = image;
                         }
-                        // Handle different API endpoints based on base URL
-                        let endpoint = '/chat/completions';
-                        if (typeof baseUrl === 'string' && baseUrl.includes('api.mcp4.ai')) {
-                            endpoint = '/api/chat';
-                        }
+                        // Use correct endpoint for api.mcp4.ai
+                        const endpoint = '/api/chat';
                         const options = {
                             method: 'POST',
                             url: `${baseUrl}${endpoint}`,
@@ -363,10 +346,10 @@ class Fusion {
                 else if (resource === 'credits') {
                     if (operation === 'getBalance') {
                         const credentials = await this.getCredentials('fusionApi');
-                        const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
+                        const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
                         const options = {
                             method: 'GET',
-                            url: `${baseUrl}/user/credits`,
+                            url: `${baseUrl}/api/account`,
                             json: true,
                         };
                         responseData = await this.helpers.requestWithAuthentication.call(this, 'fusionApi', options);
@@ -392,10 +375,10 @@ class Fusion {
                             qs.provider = additionalFields.provider;
                         }
                         const credentials = await this.getCredentials('fusionApi');
-                        const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
+                        const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
                         const options = {
                             method: 'GET',
-                            url: `${baseUrl}/user/activity`,
+                            url: `${baseUrl}/api/account`,
                             qs,
                             json: true,
                         };

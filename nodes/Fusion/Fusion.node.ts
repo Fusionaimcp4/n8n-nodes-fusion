@@ -5,21 +5,25 @@ import type {
 	INodeTypeDescription,
 	IRequestOptions,
 } from 'n8n-workflow';
+import { NodeConnectionType } from 'n8n-workflow';
 
 export class Fusion implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Fusion AI',
 		name: 'fusion',
 		icon: 'file:fusion.svg',
-		group: ['transform'],
+		group: ['ai'],
 		version: 1,
+		codex: {
+			categories: ['Language Models'],
+		},
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Interact with Fusion AI via NeuroSwitch multi-provider orchestration',
 		defaults: {
 			name: 'Fusion AI',
 		},
-		inputs: ['main'] as any,
-		outputs: ['main'] as any,
+		inputs: [NodeConnectionType.Main],
+		outputs: [NodeConnectionType.Main],
 		credentials: [
 			{
 				name: 'fusionApi',
@@ -329,44 +333,25 @@ export class Fusion implements INodeType {
 						const image = this.getNodeParameter('image', i) as string;
 
 						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
+						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
 
-						// Handle different request body formats based on base URL
-						let body: any;
-						if (typeof baseUrl === 'string' && baseUrl.includes('api.fusionai.com')) {
-							// OpenAI-compatible format for api.fusionai.com
-							body = {
-								messages: [
-									{
-										role: 'user',
-										content: prompt,
-									},
-								],
-								provider: provider,
-								model: model || mode,
-							};
-						} else {
-							// Original format for api.mcp4.ai
-							body = {
-								prompt,
-								provider,
-								mode,
-							};
-							
-							if (model) {
-								body.model = model;
-							}
+						// Use correct format for api.mcp4.ai
+						const body: any = {
+							prompt,
+							provider,
+							mode,
+						};
+						
+						if (model) {
+							body.model = model;
 						}
 
 						if (image) {
 							body.image = image;
 						}
 						
-						// Handle different API endpoints based on base URL
-						let endpoint = '/chat/completions';
-						if (typeof baseUrl === 'string' && baseUrl.includes('api.mcp4.ai')) {
-							endpoint = '/api/chat';
-						}
+						// Use correct endpoint for api.mcp4.ai
+						const endpoint = '/api/chat';
 						
 						const options: IRequestOptions = {
 							method: 'POST',
@@ -384,11 +369,11 @@ export class Fusion implements INodeType {
 				} else if (resource === 'credits') {
 					if (operation === 'getBalance') {
 						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
+						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
 						
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `${baseUrl}/user/credits`,
+							url: `${baseUrl}/api/account`,
 							json: true,
 						};
 
@@ -425,11 +410,11 @@ export class Fusion implements INodeType {
 						}
 
 						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
+						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
 						
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `${baseUrl}/user/activity`,
+							url: `${baseUrl}/api/account`,
 							qs,
 							json: true,
 						};
