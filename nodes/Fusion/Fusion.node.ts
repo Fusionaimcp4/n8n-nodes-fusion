@@ -31,7 +31,6 @@ export class Fusion implements INodeType {
 				Accept: 'application/json',
 				'Content-Type': 'application/json',
 			},
-			baseURL: '={{$credentials.baseUrl}}',
 		},
 		properties: [
 			{
@@ -343,9 +342,12 @@ export class Fusion implements INodeType {
 							body.image = image;
 						}
 
+						const credentials = await this.getCredentials('fusionApi');
+						const baseUrl = credentials?.baseUrl || 'https://fusion.mcp4.ai';
+						
 						const options: IRequestOptions = {
 							method: 'POST',
-							uri: '/api/chat',
+							url: `${baseUrl}/api/chat`,
 							body,
 							json: true,
 						};
@@ -358,9 +360,12 @@ export class Fusion implements INodeType {
 					}
 				} else if (resource === 'credits') {
 					if (operation === 'getBalance') {
+						const credentials = await this.getCredentials('fusionApi');
+						const baseUrl = credentials?.baseUrl || 'https://fusion.mcp4.ai';
+						
 						const options: IRequestOptions = {
 							method: 'GET',
-							uri: '/api/user/credits',
+							url: `${baseUrl}/api/user/credits`,
 							json: true,
 						};
 
@@ -396,9 +401,12 @@ export class Fusion implements INodeType {
 							qs.provider = additionalFields.provider;
 						}
 
+						const credentials = await this.getCredentials('fusionApi');
+						const baseUrl = credentials?.baseUrl || 'https://fusion.mcp4.ai';
+						
 						const options: IRequestOptions = {
 							method: 'GET',
-							uri: '/api/user/activity',
+							url: `${baseUrl}/api/user/activity`,
 							qs,
 							json: true,
 						};

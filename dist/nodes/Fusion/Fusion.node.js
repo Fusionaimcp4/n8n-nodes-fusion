@@ -27,7 +27,6 @@ class Fusion {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
                 },
-                baseURL: '={{$credentials.baseUrl}}',
             },
             properties: [
                 {
@@ -327,9 +326,11 @@ class Fusion {
                         if (image) {
                             body.image = image;
                         }
+                        const credentials = await this.getCredentials('fusionApi');
+                        const baseUrl = credentials?.baseUrl || 'https://fusion.mcp4.ai';
                         const options = {
                             method: 'POST',
-                            uri: '/api/chat',
+                            url: `${baseUrl}/api/chat`,
                             body,
                             json: true,
                         };
@@ -338,9 +339,11 @@ class Fusion {
                 }
                 else if (resource === 'credits') {
                     if (operation === 'getBalance') {
+                        const credentials = await this.getCredentials('fusionApi');
+                        const baseUrl = credentials?.baseUrl || 'https://fusion.mcp4.ai';
                         const options = {
                             method: 'GET',
-                            uri: '/api/user/credits',
+                            url: `${baseUrl}/api/user/credits`,
                             json: true,
                         };
                         responseData = await this.helpers.requestWithAuthentication.call(this, 'fusionApi', options);
@@ -365,9 +368,11 @@ class Fusion {
                         if (additionalFields.provider) {
                             qs.provider = additionalFields.provider;
                         }
+                        const credentials = await this.getCredentials('fusionApi');
+                        const baseUrl = credentials?.baseUrl || 'https://fusion.mcp4.ai';
                         const options = {
                             method: 'GET',
-                            uri: '/api/user/activity',
+                            url: `${baseUrl}/api/user/activity`,
                             qs,
                             json: true,
                         };
