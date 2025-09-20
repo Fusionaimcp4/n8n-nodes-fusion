@@ -316,7 +316,7 @@ class Fusion {
                         const mode = this.getNodeParameter('mode', i);
                         const image = this.getNodeParameter('image', i);
                         const credentials = await this.getCredentials('fusionApi');
-                        const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
+                        const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
                         // Handle different request body formats based on base URL
                         let body;
                         if (typeof baseUrl === 'string' && baseUrl.includes('api.fusionai.com')) {
@@ -363,7 +363,7 @@ class Fusion {
                 else if (resource === 'credits') {
                     if (operation === 'getBalance') {
                         const credentials = await this.getCredentials('fusionApi');
-                        const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
+                        const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
                         const options = {
                             method: 'GET',
                             url: `${baseUrl}/user/credits`,
@@ -392,7 +392,7 @@ class Fusion {
                             qs.provider = additionalFields.provider;
                         }
                         const credentials = await this.getCredentials('fusionApi');
-                        const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
+                        const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
                         const options = {
                             method: 'GET',
                             url: `${baseUrl}/user/activity`,

@@ -24,11 +24,11 @@ class FusionApi {
                 type: 'options',
                 options: [
                     {
-                        name: 'api.fusionai.com (Recommended)',
+                        name: 'api.fusionai.com (Working)',
                         value: 'https://api.fusionai.com/v1',
                     },
                     {
-                        name: 'api.mcp4.ai',
+                        name: 'api.mcp4.ai (Not Working)',
                         value: 'https://api.mcp4.ai',
                     },
                 ],

@@ -329,7 +329,7 @@ export class Fusion implements INodeType {
 						const image = this.getNodeParameter('image', i) as string;
 
 						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
+						const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
 
 						// Handle different request body formats based on base URL
 						let body: any;
@@ -384,7 +384,7 @@ export class Fusion implements INodeType {
 				} else if (resource === 'credits') {
 					if (operation === 'getBalance') {
 						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
+						const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
 						
 						const options: IRequestOptions = {
 							method: 'GET',
@@ -425,7 +425,7 @@ export class Fusion implements INodeType {
 						}
 
 						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
+						const baseUrl = credentials?.baseUrl || 'https://api.fusionai.com/v1';
 						
 						const options: IRequestOptions = {
 							method: 'GET',
