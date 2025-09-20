@@ -17,5 +17,14 @@
   "inputs": ["main"],
   "outputs": ["main"],
   "credentials": ["fusionApi"],
-  "implementation": "Fusion.node.ts"
+  "implementation": "Fusion.node.ts",
+  "properties": [
+    {
+      "displayName": "Model",
+      "name": "model",
+      "type": "string",
+      "default": "gpt-4o",
+      "description": "The model to use for chat completion"
+    }
+  ]
 }
