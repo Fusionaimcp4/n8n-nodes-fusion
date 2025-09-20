@@ -345,9 +345,15 @@ export class Fusion implements INodeType {
 						const credentials = await this.getCredentials('fusionApi');
 						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
 						
+						// Handle different API endpoints
+						let endpoint = '/api/chat';
+						if (typeof baseUrl === 'string' && baseUrl.includes('api.fusionai.com')) {
+							endpoint = '/chat/completions';
+						}
+						
 						const options: IRequestOptions = {
 							method: 'POST',
-							url: `${baseUrl}/api/chat`,
+							url: `${baseUrl}${endpoint}`,
 							body,
 							json: true,
 						};
