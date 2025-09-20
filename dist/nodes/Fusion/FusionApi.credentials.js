@@ -21,20 +21,10 @@ class FusionApi {
             {
                 displayName: 'Base URL',
                 name: 'baseUrl',
-                type: 'options',
-                options: [
-                    {
-                        name: 'api.mcp4.ai (Recommended)',
-                        value: 'https://api.mcp4.ai',
-                    },
-                    {
-                        name: 'api.fusionai.com',
-                        value: 'https://api.fusionai.com/v1',
-                    },
-                ],
+                type: 'string',
                 default: 'https://api.mcp4.ai',
                 required: false,
-                description: 'Base URL for the Fusion AI API',
+                description: 'Base URL for the Fusion AI API (leave default unless using custom endpoint)',
             },
         ];
         this.authenticate = {

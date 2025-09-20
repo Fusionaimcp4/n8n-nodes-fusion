@@ -345,11 +345,8 @@ export class Fusion implements INodeType {
 						const credentials = await this.getCredentials('fusionApi');
 						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
 						
-						// Handle different API endpoints
-						let endpoint = '/api/chat';
-						if (typeof baseUrl === 'string' && baseUrl.includes('api.fusionai.com')) {
-							endpoint = '/chat/completions';
-						}
+						// Use correct endpoint path
+						const endpoint = '/chat';
 						
 						const options: IRequestOptions = {
 							method: 'POST',
@@ -371,7 +368,7 @@ export class Fusion implements INodeType {
 						
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `${baseUrl}/api/user/credits`,
+							url: `${baseUrl}/user/credits`,
 							json: true,
 						};
 
@@ -412,7 +409,7 @@ export class Fusion implements INodeType {
 						
 						const options: IRequestOptions = {
 							method: 'GET',
-							url: `${baseUrl}/api/user/activity`,
+							url: `${baseUrl}/user/activity`,
 							qs,
 							json: true,
 						};
