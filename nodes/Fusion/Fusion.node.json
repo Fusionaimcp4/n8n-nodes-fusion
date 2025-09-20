@@ -5,8 +5,12 @@
   "version": 1,
   "type": "node",
   "category": "AI",
-  "group": ["transform"],
-  "icon": "file:fusion.svg",
+  "group": ["transform", "ai"],
+  "icon": "fusion.svg",
+  "codex": {
+    "categories": ["Language Models"],
+    "subtype": "llm"
+  },
   "defaults": {
     "name": "Fusion AI"
   },
