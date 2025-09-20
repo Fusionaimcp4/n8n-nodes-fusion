@@ -343,7 +343,7 @@ export class Fusion implements INodeType {
 						}
 
 						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://fusion.mcp4.ai';
+						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
 						
 						const options: IRequestOptions = {
 							method: 'POST',
@@ -361,7 +361,7 @@ export class Fusion implements INodeType {
 				} else if (resource === 'credits') {
 					if (operation === 'getBalance') {
 						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://fusion.mcp4.ai';
+						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
 						
 						const options: IRequestOptions = {
 							method: 'GET',
@@ -402,7 +402,7 @@ export class Fusion implements INodeType {
 						}
 
 						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://fusion.mcp4.ai';
+						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
 						
 						const options: IRequestOptions = {
 							method: 'GET',

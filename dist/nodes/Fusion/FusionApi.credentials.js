@@ -5,7 +5,7 @@ class FusionApi {
     constructor() {
         this.name = 'fusionApi';
         this.displayName = 'Fusion API';
-        this.documentationUrl = 'https://fusion.mcp4.ai/docs';
+        this.documentationUrl = 'https://api.mcp4.ai/docs';
         this.properties = [
             {
                 displayName: 'API Key',
@@ -22,7 +22,7 @@ class FusionApi {
                 displayName: 'Base URL',
                 name: 'baseUrl',
                 type: 'string',
-                default: 'https://fusion.mcp4.ai',
+                default: 'https://api.mcp4.ai',
                 required: false,
                 description: 'Base URL for the Fusion AI API (leave default unless using custom endpoint)',
             },
