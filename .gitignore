@@ -5,9 +5,10 @@ yarn-debug.log*
 yarn-error.log*
 
 # Build outputs
-dist/
 build/
 *.tsbuildinfo
+
+# Note: dist/ is included in the package, so we don't ignore it
 
 # Environment files
 .env

@@ -1,0 +1,21 @@
+{
+  "name": "fusion",
+  "displayName": "Fusion AI",
+  "description": "Unified AI orchestration via Fusion AI (NeuroSwitch, OpenAI, Anthropic, Google)",
+  "version": 1,
+  "type": "node",
+  "category": "AI",
+  "group": ["transform", "ai"],
+  "icon": "fusion.svg",
+  "codex": {
+    "categories": ["Language Models"],
+    "subtype": "llm"
+  },
+  "defaults": {
+    "name": "Fusion AI"
+  },
+  "inputs": ["main"],
+  "outputs": ["main"],
+  "credentials": ["fusionApi"],
+  "implementation": "Fusion.node.ts"
+}
