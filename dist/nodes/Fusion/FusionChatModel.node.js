@@ -129,43 +129,45 @@ class FusionChatModel {
             },
         };
     }
-    async execute() {
-        const items = [];
-        for (let i = 0; i < this.getInputData().length || i === 0; i++) {
-            const cred = await this.getCredentials('fusionApi');
-            const baseUrl = cred.baseUrl?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
-            const model = this.getNodeParameter('model', i);
-            const temperature = this.getNodeParameter('temperature', i);
-            const maxTokens = this.getNodeParameter('maxTokens', i);
-            const topP = this.getNodeParameter('topP', i);
-            const frequencyPenalty = this.getNodeParameter('frequencyPenalty', i);
-            const presencePenalty = this.getNodeParameter('presencePenalty', i);
-            items.push({
-                json: {},
-                pairedItem: { item: i },
-                context: {
-                    ai: {
-                        languageModel: {
-                            provider: 'fusion',
-                            baseUrl: `${baseUrl}/api/chat`,
-                            headers: {
-                                'Authorization': `ApiKey ${cred.apiKey}`,
-                                'Content-Type': 'application/json',
-                            },
-                            config: {
-                                model,
-                                temperature,
-                                max_tokens: maxTokens,
-                                top_p: topP,
-                                frequency_penalty: frequencyPenalty,
-                                presence_penalty: presencePenalty,
-                            },
-                        },
+    async supplyData(itemIndex) {
+        const credentials = await this.getCredentials('fusionApi');
+        const baseUrl = credentials.baseUrl?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
+        const model = this.getNodeParameter('model', itemIndex);
+        const temperature = this.getNodeParameter('temperature', itemIndex);
+        const maxTokens = this.getNodeParameter('maxTokens', itemIndex);
+        const topP = this.getNodeParameter('topP', itemIndex);
+        const frequencyPenalty = this.getNodeParameter('frequencyPenalty', itemIndex);
+        const presencePenalty = this.getNodeParameter('presencePenalty', itemIndex);
+        // Return the language model configuration that n8n AI Agent can use
+        const languageModel = {
+            async invoke(prompt) {
+                const response = await fetch(`${baseUrl}/api/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `ApiKey ${credentials.apiKey}`,
+                        'Content-Type': 'application/json',
                     },
-                },
-            });
-        }
-        return [items];
+                    body: JSON.stringify({
+                        prompt,
+                        provider: model.includes('/') ? model.split('/')[0] : 'neuroswitch',
+                        model,
+                        temperature,
+                        max_tokens: maxTokens,
+                        top_p: topP,
+                        frequency_penalty: frequencyPenalty,
+                        presence_penalty: presencePenalty,
+                    }),
+                });
+                if (!response.ok) {
+                    throw new Error(`Fusion AI API error: ${response.status} ${response.statusText}`);
+                }
+                const data = await response.json();
+                return data.response?.text || data.text || '';
+            },
+        };
+        return {
+            response: languageModel,
+        };
     }
 }
 exports.FusionChatModel = FusionChatModel;

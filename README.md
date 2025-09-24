@@ -95,13 +95,17 @@ npm install n8n-nodes-fusion
 ### Adding Fusion Chat Model for AI Agents
 
 1. **Open n8n workflow editor**
-2. **Look for "Language Models" in the left panel**
+2. **Look for "Language Models" in the left panel** 
 3. **Drag "Fusion Chat Model"** into your workflow
 4. **Configure the node**:
    - Select your Fusion API credentials
    - Choose a model (auto-loaded from API)
    - Adjust parameters (temperature, max tokens, etc.)
-5. **Connect to AI Agent node**
+5. **Connect to AI Agent node**:
+   - The connection should show as **"Language Model"** type
+   - You should see the AI Agent accept the connection without errors
+
+> **💡 Note**: If the node appears as "CUSTOM.fusionChatModel" instead of in the Language Models panel, restart n8n after installation.
 
 ### Available Models
 
@@ -304,6 +308,20 @@ Content-Type: application/json
 2. **Restart n8n**: Restart after installing custom nodes
 3. **Check environment**: Verify `N8N_CUSTOM_EXTENSIONS` if using custom path
 4. **Check logs**: Look for errors in n8n startup logs
+
+### Fusion Chat Model Not in Language Models Panel
+
+1. **Restart n8n**: Custom AI Language Model nodes require restart
+2. **Check node order**: Ensure `FusionChatModel.node.js` is listed first in package.json
+3. **Verify outputs**: Check that metadata shows `"outputs": ["ai_languageModel"]`
+4. **Check file structure**: Ensure all files in `dist/nodes/Fusion/` are present
+
+### Cannot Connect to AI Agent
+
+1. **Node type**: Ensure using "Fusion Chat Model" (not "Fusion AI")
+2. **Connection type**: Look for "Language Model" connection port on AI Agent
+3. **Node restart**: Try deleting and re-adding the Fusion Chat Model node
+4. **Version check**: Ensure n8n version supports AI Language Model connections
 
 ### Authentication Errors
 

@@ -4,6 +4,8 @@ import type {
 	INodeType,
 	INodeTypeDescription,
 	INodeExecutionData,
+	ISupplyDataFunctions,
+	SupplyData,
 } from 'n8n-workflow';
 import { NodeConnectionType } from 'n8n-workflow';
 
@@ -136,46 +138,49 @@ export class FusionChatModel implements INodeType {
 		},
 	};
 
-	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		const items: INodeExecutionData[] = [];
-		
-		for (let i = 0; i < this.getInputData().length || i === 0; i++) {
-			const cred = await this.getCredentials('fusionApi');
-			const baseUrl = (cred.baseUrl as string)?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
+	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
+		const credentials = await this.getCredentials('fusionApi');
+		const baseUrl = (credentials.baseUrl as string)?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
 
-			const model = this.getNodeParameter('model', i) as string;
-			const temperature = this.getNodeParameter('temperature', i) as number;
-			const maxTokens = this.getNodeParameter('maxTokens', i) as number;
-			const topP = this.getNodeParameter('topP', i) as number;
-			const frequencyPenalty = this.getNodeParameter('frequencyPenalty', i) as number;
-			const presencePenalty = this.getNodeParameter('presencePenalty', i) as number;
+		const model = this.getNodeParameter('model', itemIndex) as string;
+		const temperature = this.getNodeParameter('temperature', itemIndex) as number;
+		const maxTokens = this.getNodeParameter('maxTokens', itemIndex) as number;
+		const topP = this.getNodeParameter('topP', itemIndex) as number;
+		const frequencyPenalty = this.getNodeParameter('frequencyPenalty', itemIndex) as number;
+		const presencePenalty = this.getNodeParameter('presencePenalty', itemIndex) as number;
 
-			items.push({
-				json: {},
-				pairedItem: { item: i },
-				context: {
-					ai: {
-						languageModel: {
-							provider: 'fusion',
-							baseUrl: `${baseUrl}/api/chat`,
-							headers: {
-								'Authorization': `ApiKey ${cred.apiKey}`,
-								'Content-Type': 'application/json',
-							},
-							config: {
-								model,
-								temperature,
-								max_tokens: maxTokens,
-								top_p: topP,
-								frequency_penalty: frequencyPenalty,
-								presence_penalty: presencePenalty,
-							},
-						},
+		// Return the language model configuration that n8n AI Agent can use
+		const languageModel = {
+			async invoke(prompt: string) {
+				const response = await fetch(`${baseUrl}/api/chat`, {
+					method: 'POST',
+					headers: {
+						'Authorization': `ApiKey ${credentials.apiKey}`,
+						'Content-Type': 'application/json',
 					},
-				},
-			});
-		}
-		
-		return [items];
+					body: JSON.stringify({
+						prompt,
+						provider: model.includes('/') ? model.split('/')[0] : 'neuroswitch',
+						model,
+						temperature,
+						max_tokens: maxTokens,
+						top_p: topP,
+						frequency_penalty: frequencyPenalty,
+						presence_penalty: presencePenalty,
+					}),
+				});
+
+				if (!response.ok) {
+					throw new Error(`Fusion AI API error: ${response.status} ${response.statusText}`);
+				}
+
+				const data = await response.json() as any;
+				return data.response?.text || data.text || '';
+			},
+		};
+
+		return {
+			response: languageModel,
+		};
 	}
 }

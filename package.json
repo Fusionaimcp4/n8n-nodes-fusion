@@ -49,8 +49,8 @@
       "dist/credentials/FusionApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/Fusion/Fusion.node.js",
-      "dist/nodes/Fusion/FusionChatModel.node.js"
+      "dist/nodes/Fusion/FusionChatModel.node.js",
+      "dist/nodes/Fusion/Fusion.node.js"
     ]
   },
   "devDependencies": {
