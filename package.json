@@ -29,14 +29,14 @@
     "pnpm": ">=9.1"
   },
   "packageManager": "pnpm@9.1.0",
-  "main": "dist/nodes/Fusion/Fusion.node.js",
+  "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "postbuild": "copy nodes\\Fusion\\fusion.svg dist\\nodes\\Fusion\\fusion.svg && copy nodes\\Fusion\\Fusion.node.json dist\\nodes\\Fusion\\Fusion.node.json",
+    "postbuild": "copy nodes\\Fusion\\fusion.svg dist\\nodes\\Fusion\\fusion.svg && copy nodes\\Fusion\\Fusion.node.json dist\\nodes\\Fusion\\Fusion.node.json && copy nodes\\Fusion\\FusionChatModel.node.json dist\\nodes\\Fusion\\FusionChatModel.node.json",
     "dev": "tsc --watch",
     "format": "prettier nodes credentials --write",
-    "lint": "eslint nodes credentials package.json",
-    "lintfix": "eslint nodes credentials package.json --fix",
+    "lint": "eslint nodes/**/*.ts credentials/**/*.ts package.json",
+    "lintfix": "eslint nodes/**/*.ts credentials/**/*.ts package.json --fix",
     "prepublishOnly": "npm run build && npm run lint",
     "test": "jest"
   },
@@ -49,7 +49,8 @@
       "dist/credentials/FusionApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/Fusion/Fusion.node.js"
+      "dist/nodes/Fusion/Fusion.node.js",
+      "dist/nodes/Fusion/FusionChatModel.node.js"
     ]
   },
   "devDependencies": {

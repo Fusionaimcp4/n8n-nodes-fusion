@@ -1,0 +1,212 @@
+{
+  "name": "Fusion AI Model Comparison Example", 
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "6f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger", 
+      "typeVersion": 1,
+      "position": [80, 200]
+    },
+    {
+      "parameters": {
+        "resource": "models",
+        "operation": "listModels"
+      },
+      "id": "7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
+      "name": "List Available Models",
+      "type": "n8n-nodes-fusion.fusion",
+      "typeVersion": 1, 
+      "position": [280, 100],
+      "credentials": {
+        "fusionApi": {
+          "id": "fusion-api-credentials",
+          "name": "Fusion API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "account",
+        "operation": "getInfo"
+      },
+      "id": "8b9c0d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e",
+      "name": "Check Account Status",
+      "type": "n8n-nodes-fusion.fusion",
+      "typeVersion": 1,
+      "position": [280, 300],
+      "credentials": {
+        "fusionApi": {
+          "id": "fusion-api-credentials", 
+          "name": "Fusion API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "sendMessage",
+        "model": "openai/gpt-4",
+        "message": "What are the key benefits of AI in business automation?",
+        "additionalFields": {
+          "temperature": 0.5,
+          "maxTokens": 300
+        }
+      },
+      "id": "9c0d1e2f-3a4b-5c6d-7e8f-9a0b1c2d3e4f",
+      "name": "OpenAI Response",
+      "type": "n8n-nodes-fusion.fusion",
+      "typeVersion": 1,
+      "position": [480, 100],
+      "credentials": {
+        "fusionApi": {
+          "id": "fusion-api-credentials",
+          "name": "Fusion API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat", 
+        "operation": "sendMessage",
+        "model": "anthropic/claude-3-sonnet",
+        "message": "What are the key benefits of AI in business automation?",
+        "additionalFields": {
+          "temperature": 0.5,
+          "maxTokens": 300
+        }
+      },
+      "id": "0d1e2f3a-4b5c-6d7e-8f9a-0b1c2d3e4f5a",
+      "name": "Claude Response", 
+      "type": "n8n-nodes-fusion.fusion",
+      "typeVersion": 1,
+      "position": [480, 200],
+      "credentials": {
+        "fusionApi": {
+          "id": "fusion-api-credentials",
+          "name": "Fusion API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "sendMessage", 
+        "model": "google/gemini-pro",
+        "message": "What are the key benefits of AI in business automation?",
+        "additionalFields": {
+          "temperature": 0.5,
+          "maxTokens": 300
+        }
+      },
+      "id": "1e2f3a4b-5c6d-7e8f-9a0b-1c2d3e4f5a6b",
+      "name": "Gemini Response",
+      "type": "n8n-nodes-fusion.fusion", 
+      "typeVersion": 1,
+      "position": [480, 300],
+      "credentials": {
+        "fusionApi": {
+          "id": "fusion-api-credentials",
+          "name": "Fusion API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine all model responses for comparison\nconst items = $input.all();\n\nconst comparison = {\n  timestamp: new Date().toISOString(),\n  models_available: items[0]?.json?.length || 0,\n  account_status: items[1]?.json || {},\n  responses: {\n    openai: {\n      response: items[2]?.json?.response?.text || 'No response',\n      cost: items[2]?.json?.cost_charged_to_credits || 0,\n      tokens: items[2]?.json?.tokens || {}\n    },\n    claude: {\n      response: items[3]?.json?.response?.text || 'No response', \n      cost: items[3]?.json?.cost_charged_to_credits || 0,\n      tokens: items[3]?.json?.tokens || {}\n    },\n    gemini: {\n      response: items[4]?.json?.response?.text || 'No response',\n      cost: items[4]?.json?.cost_charged_to_credits || 0, \n      tokens: items[4]?.json?.tokens || {}\n    }\n  }\n};\n\nreturn { json: comparison };"
+      },
+      "id": "2f3a4b5c-6d7e-8f9a-0b1c-2d3e4f5a6b7c",
+      "name": "Compare Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [680, 200]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "List Available Models",
+            "type": "main", 
+            "index": 0
+          },
+          {
+            "node": "Check Account Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Available Models": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Account Status": {
+      "main": [
+        [
+          {
+            "node": "Claude Response", 
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Response": {
+      "main": [
+        [
+          {
+            "node": "Compare Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Gemini Response",
+            "type": "main", 
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Response": {
+      "main": [
+        [
+          {
+            "node": "Compare Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "meta": {
+    "instanceId": "fusion-example-model-comparison"
+  },
+  "id": "fusion-model-comparison-example",
+  "tags": [
+    {
+      "id": "fusion-examples", 
+      "name": "Fusion Examples"
+    }
+  ]
+}

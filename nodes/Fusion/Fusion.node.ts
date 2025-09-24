@@ -1,9 +1,9 @@
 import type {
 	IExecuteFunctions,
+	ILoadOptionsFunctions,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
-	IRequestOptions,
 } from 'n8n-workflow';
 import { NodeConnectionType } from 'n8n-workflow';
 
@@ -14,11 +14,8 @@ export class Fusion implements INodeType {
 		icon: 'file:fusion.svg',
 		group: ['ai'],
 		version: 1,
-		codex: {
-			categories: ['Language Models'],
-		},
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Interact with Fusion AI via NeuroSwitch multi-provider orchestration',
+		description: 'Interact with Fusion AI (NeuroSwitch multi-provider orchestration)',
 		defaults: {
 			name: 'Fusion AI',
 		},
@@ -30,12 +27,6 @@ export class Fusion implements INodeType {
 				required: true,
 			},
 		],
-		requestDefaults: {
-			headers: {
-				Accept: 'application/json',
-				'Content-Type': 'application/json',
-			},
-		},
 		properties: [
 			{
 				displayName: 'Resource',
@@ -46,23 +37,18 @@ export class Fusion implements INodeType {
 					{
 						name: 'Chat',
 						value: 'chat',
-						description: 'Send messages to AI providers through Fusion',
 					},
 					{
-						name: 'Credits',
-						value: 'credits',
-						description: 'Manage your Fusion AI credits',
+						name: 'Models',
+						value: 'models',
 					},
 					{
-						name: 'Usage',
-						value: 'usage',
-						description: 'View usage logs and analytics',
+						name: 'Account',
+						value: 'account',
 					},
 				],
 				default: 'chat',
 			},
-
-			// Chat Operations
 			{
 				displayName: 'Operation',
 				name: 'operation',
@@ -77,14 +63,12 @@ export class Fusion implements INodeType {
 					{
 						name: 'Send Message',
 						value: 'sendMessage',
-						description: 'Send a message to AI providers via Fusion',
-						action: 'Send a message',
+						action: 'Send a message to AI model',
+						description: 'Send a message to an AI model and get a response',
 					},
 				],
 				default: 'sendMessage',
 			},
-
-			// Credits Operations
 			{
 				displayName: 'Operation',
 				name: 'operation',
@@ -92,21 +76,19 @@ export class Fusion implements INodeType {
 				noDataExpression: true,
 				displayOptions: {
 					show: {
-						resource: ['credits'],
+						resource: ['models'],
 					},
 				},
 				options: [
 					{
-						name: 'Get Balance',
-						value: 'getBalance',
-						description: 'Get current credit balance and transaction history',
-						action: 'Get credit balance',
+						name: 'List Models',
+						value: 'listModels',
+						action: 'List available models',
+						description: 'Get a list of available AI models',
 					},
 				],
-				default: 'getBalance',
+				default: 'listModels',
 			},
-
-			// Usage Operations
 			{
 				displayName: 'Operation',
 				name: 'operation',
@@ -114,26 +96,40 @@ export class Fusion implements INodeType {
 				noDataExpression: true,
 				displayOptions: {
 					show: {
-						resource: ['usage'],
+						resource: ['account'],
 					},
 				},
 				options: [
 					{
-						name: 'Get Logs',
-						value: 'getLogs',
-						description: 'Get usage logs and analytics',
-						action: 'Get usage logs',
+						name: 'Get Info',
+						value: 'getInfo',
+						action: 'Get account information',
+						description: 'Get account information and usage',
 					},
 				],
-				default: 'getLogs',
+				default: 'getInfo',
 			},
-
-			// Chat Parameters
+			// Chat parameters
 			{
-				displayName: 'Prompt',
-				name: 'prompt',
+				displayName: 'Model',
+				name: 'model',
+				type: 'options',
+				typeOptions: {
+					loadOptionsMethod: 'getModels',
+				},
+				displayOptions: {
+					show: {
+						resource: ['chat'],
+						operation: ['sendMessage'],
+					},
+				},
+				default: 'neuroswitch',
+				description: 'The AI model to use for chat completion',
+			},
+			{
+				displayName: 'Message',
+				name: 'message',
 				type: 'string',
-				required: true,
 				displayOptions: {
 					show: {
 						resource: ['chat'],
@@ -142,47 +138,16 @@ export class Fusion implements INodeType {
 				},
 				default: '',
 				placeholder: 'Enter your message here...',
-				description: 'The message or prompt to send to the AI',
+				description: 'The message to send to the AI model',
+				required: true,
 			},
 			{
-				displayName: 'Provider',
-				name: 'provider',
-				type: 'options',
-				displayOptions: {
-					show: {
-						resource: ['chat'],
-						operation: ['sendMessage'],
-					},
-				},
-				options: [
-					{
-						name: 'NeuroSwitch (Auto-Select)',
-						value: 'neuroswitch',
-						description: 'Let Fusion AI automatically select the best provider',
-					},
-					{
-						name: 'OpenAI',
-						value: 'openai',
-						description: 'Use OpenAI models directly',
-					},
-					{
-						name: 'Claude (Anthropic)',
-						value: 'claude',
-						description: 'Use Claude models directly',
-					},
-					{
-						name: 'Gemini (Google)',
-						value: 'gemini',
-						description: 'Use Gemini models directly',
-					},
-				],
-				default: 'neuroswitch',
-				description: 'Which AI provider to use',
-			},
-			{
-				displayName: 'Model',
-				name: 'model',
+				displayName: 'System Prompt',
+				name: 'systemPrompt',
 				type: 'string',
+				typeOptions: {
+					rows: 3,
+				},
 				displayOptions: {
 					show: {
 						resource: ['chat'],
@@ -190,271 +155,205 @@ export class Fusion implements INodeType {
 					},
 				},
 				default: '',
-				placeholder: 'e.g., gpt-4o, claude-3-sonnet',
-				description: 'Specific model to use (optional, will use provider default if empty)',
+				placeholder: 'You are a helpful assistant...',
+				description: 'System prompt to set the behavior of the AI (optional)',
 			},
 			{
-				displayName: 'Mode',
-				name: 'mode',
-				type: 'options',
-				displayOptions: {
-					show: {
-						resource: ['chat'],
-						operation: ['sendMessage'],
-					},
-				},
-				options: [
-					{
-						name: 'Chat',
-						value: 'chat',
-						description: 'Conversational chat mode',
-					},
-					{
-						name: 'Completion',
-						value: 'completion',
-						description: 'Text completion mode',
-					},
-					{
-						name: 'Generation',
-						value: 'generation',
-						description: 'Content generation mode',
-					},
-				],
-				default: 'chat',
-				description: 'The mode of interaction with the AI',
-			},
-			{
-				displayName: 'Image (Base64)',
-				name: 'image',
-				type: 'string',
-				displayOptions: {
-					show: {
-						resource: ['chat'],
-						operation: ['sendMessage'],
-					},
-				},
-				default: '',
-				placeholder: 'data:image/jpeg;base64,/9j/4AAQ...',
-				description: 'Base64-encoded image for vision models (optional)',
-			},
-
-			// Usage Parameters
-			{
-				displayName: 'Options',
-				name: 'options',
+				displayName: 'Additional Fields',
+				name: 'additionalFields',
 				type: 'collection',
+				placeholder: 'Add Field',
 				displayOptions: {
 					show: {
-						resource: ['usage'],
-						operation: ['getLogs'],
+						resource: ['chat'],
+						operation: ['sendMessage'],
 					},
 				},
 				default: {},
-				placeholder: 'Add Option',
 				options: [
 					{
-						displayName: 'Limit',
-						name: 'limit',
+						displayName: 'Temperature',
+						name: 'temperature',
 						type: 'number',
-						default: 50,
+						default: 0.3,
+						description: 'Controls randomness in the response (0.0 to 1.0)',
 						typeOptions: {
-							minValue: 1,
-							maxValue: 100,
+							minValue: 0,
+							maxValue: 1,
+							numberPrecision: 1,
 						},
-						description: 'Number of items per page (max 100)',
 					},
 					{
-						displayName: 'Page',
-						name: 'page',
+						displayName: 'Max Tokens',
+						name: 'maxTokens',
+						type: 'number',
+						default: 1024,
+						description: 'Maximum number of tokens to generate',
+						typeOptions: {
+							minValue: 1,
+							maxValue: 4096,
+						},
+					},
+					{
+						displayName: 'Top P',
+						name: 'topP',
 						type: 'number',
 						default: 1,
+						description: 'Controls diversity via nucleus sampling (0.0 to 1.0)',
 						typeOptions: {
-							minValue: 1,
+							minValue: 0,
+							maxValue: 1,
+							numberPrecision: 1,
 						},
-						description: 'Page number to retrieve',
 					},
 					{
-						displayName: 'Start Date',
-						name: 'start_date',
-						type: 'dateTime',
-						default: '',
-						description: 'Filter logs from this date onwards',
+						displayName: 'Frequency Penalty',
+						name: 'frequencyPenalty',
+						type: 'number',
+						default: 0,
+						description: 'Penalizes new tokens based on their frequency in the text so far',
+						typeOptions: {
+							minValue: -2,
+							maxValue: 2,
+							numberPrecision: 1,
+						},
 					},
 					{
-						displayName: 'End Date',
-						name: 'end_date',
-						type: 'dateTime',
-						default: '',
-						description: 'Filter logs up to this date',
-					},
-					{
-						displayName: 'Provider',
-						name: 'provider',
-						type: 'options',
-						options: [
-							{
-								name: 'OpenAI',
-								value: 'openai',
-							},
-							{
-								name: 'Claude',
-								value: 'claude',
-							},
-							{
-								name: 'Gemini',
-								value: 'gemini',
-							},
-						],
-						default: '',
-						description: 'Filter by specific provider',
+						displayName: 'Presence Penalty',
+						name: 'presencePenalty',
+						type: 'number',
+						default: 0,
+						description: 'Penalizes new tokens based on whether they appear in the text so far',
+						typeOptions: {
+							minValue: -2,
+							maxValue: 2,
+							numberPrecision: 1,
+						},
 					},
 				],
 			},
 		],
 	};
 
+	methods = {
+		loadOptions: {
+			async getModels(this: ILoadOptionsFunctions) {
+				try {
+					const credentials = await this.getCredentials('fusionApi');
+					const baseUrl = (credentials.baseUrl as string)?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
+					
+					const response = await this.helpers.httpRequest({
+						method: 'GET',
+						url: `${baseUrl}/api/models`,
+						headers: {
+							Authorization: `ApiKey ${credentials.apiKey}`,
+							'Content-Type': 'application/json',
+						},
+					});
+					
+					const models = (response.data || response || []) as any[];
+					return models.map((model: any) => ({
+						name: `${model.name || model.id_string} - $${model.input_cost_per_million_tokens || 'N/A'}/1M input`,
+						value: model.id_string || model.id,
+					}));
+				} catch (error: any) {
+					console.warn('Failed to load Fusion models:', error.message);
+					return [
+						{ name: 'NeuroSwitch', value: 'neuroswitch' },
+						{ name: 'OpenAI GPT-4', value: 'openai/gpt-4' },
+						{ name: 'Anthropic Claude', value: 'anthropic/claude-3-sonnet' },
+						{ name: 'Google Gemini', value: 'google/gemini-pro' },
+					];
+				}
+			},
+		},
+	};
+
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 
-		const resource = this.getNodeParameter('resource', 0) as string;
-		const operation = this.getNodeParameter('operation', 0) as string;
-
 		for (let i = 0; i < items.length; i++) {
 			try {
+				const credentials = await this.getCredentials('fusionApi');
+				const baseUrl = (credentials.baseUrl as string)?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
+				const resource = this.getNodeParameter('resource', i) as string;
+				const operation = this.getNodeParameter('operation', i) as string;
+
 				let responseData: any;
 
-				if (resource === 'chat') {
-					if (operation === 'sendMessage') {
-						const prompt = this.getNodeParameter('prompt', i) as string;
-						const provider = this.getNodeParameter('provider', i) as string;
-						const model = this.getNodeParameter('model', i) as string;
-						const mode = this.getNodeParameter('mode', i) as string;
-						const image = this.getNodeParameter('image', i) as string;
+				if (resource === 'chat' && operation === 'sendMessage') {
+					const model = this.getNodeParameter('model', i) as string;
+					const message = this.getNodeParameter('message', i) as string;
+					const systemPrompt = this.getNodeParameter('systemPrompt', i, '') as string;
+					const additionalFields = this.getNodeParameter('additionalFields', i, {}) as any;
 
-						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
-
-						// Use correct format for api.mcp4.ai
-						const body: any = {
-							prompt,
-							provider,
-							mode,
-						};
-						
-						if (model) {
-							body.model = model;
-						}
-
-						if (image) {
-							body.image = image;
-						}
-						
-						// Use correct endpoint for api.mcp4.ai
-						const endpoint = '/api/chat';
-						
-						const options: IRequestOptions = {
-							method: 'POST',
-							url: `${baseUrl}${endpoint}`,
-							body,
-							json: true,
-						};
-
-						responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'fusionApi',
-							options,
-						);
+					// Build the prompt
+					let prompt = message;
+					if (systemPrompt) {
+						prompt = `${systemPrompt}\n\nUser: ${message}`;
 					}
-				} else if (resource === 'credits') {
-					if (operation === 'getBalance') {
-						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
-						
-						const options: IRequestOptions = {
-							method: 'GET',
-							url: `${baseUrl}/api/account`,
-							json: true,
-						};
 
-						responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'fusionApi',
-							options,
-						);
-					}
-				} else if (resource === 'usage') {
-					if (operation === 'getLogs') {
-						const additionalFields = this.getNodeParameter('options', i) as any;
+					const requestBody: any = {
+						prompt,
+						provider: model.includes('/') ? model.split('/')[0] : 'neuroswitch',
+						model: model,
+						temperature: additionalFields.temperature || 0.3,
+						max_tokens: additionalFields.maxTokens || 1024,
+						top_p: additionalFields.topP || 1,
+						frequency_penalty: additionalFields.frequencyPenalty || 0,
+						presence_penalty: additionalFields.presencePenalty || 0,
+					};
 
-						const qs: any = {};
+					responseData = await this.helpers.httpRequest({
+						method: 'POST',
+						url: `${baseUrl}/api/chat`,
+						headers: {
+							Authorization: `ApiKey ${credentials.apiKey}`,
+							'Content-Type': 'application/json',
+						},
+						body: requestBody,
+					});
 
-						if (additionalFields.limit) {
-							qs.limit = additionalFields.limit;
-						}
+				} else if (resource === 'models' && operation === 'listModels') {
+					responseData = await this.helpers.httpRequest({
+						method: 'GET',
+						url: `${baseUrl}/api/models`,
+						headers: {
+							Authorization: `ApiKey ${credentials.apiKey}`,
+							'Content-Type': 'application/json',
+						},
+					});
 
-						if (additionalFields.page) {
-							qs.page = additionalFields.page;
-						}
-
-						if (additionalFields.start_date) {
-							qs.start_date = new Date(additionalFields.start_date).toISOString();
-						}
-
-						if (additionalFields.end_date) {
-							qs.end_date = new Date(additionalFields.end_date).toISOString();
-						}
-
-						if (additionalFields.provider) {
-							qs.provider = additionalFields.provider;
-						}
-
-						const credentials = await this.getCredentials('fusionApi');
-						const baseUrl = credentials?.baseUrl || 'https://api.mcp4.ai';
-						
-						const options: IRequestOptions = {
-							method: 'GET',
-							url: `${baseUrl}/api/account`,
-							qs,
-							json: true,
-						};
-
-						responseData = await this.helpers.requestWithAuthentication.call(
-							this,
-							'fusionApi',
-							options,
-						);
-					}
-				}
-
-				if (responseData) {
-					returnData.push({
-						json: responseData,
-						pairedItem: {
-							item: i,
+				} else if (resource === 'account' && operation === 'getInfo') {
+					responseData = await this.helpers.httpRequest({
+						method: 'GET',
+						url: `${baseUrl}/api/account`,
+						headers: {
+							Authorization: `ApiKey ${credentials.apiKey}`,
+							'Content-Type': 'application/json',
 						},
 					});
 				}
-			} catch (error: any) {
-				// Handle errors gracefully
-				const errorResponse = {
-					error: true,
-					message: error.message || 'An unknown error occurred',
-					statusCode: error.statusCode || 500,
-					timestamp: new Date().toISOString(),
-				};
 
+				returnData.push({
+					json: responseData,
+					pairedItem: { item: i },
+				});
+
+			} catch (error: any) {
 				if (this.continueOnFail()) {
 					returnData.push({
-						json: errorResponse,
-						pairedItem: {
-							item: i,
+						json: { 
+							error: true, 
+							message: error.message,
+							details: error.response?.data || error.response || 'Unknown error'
 						},
+						pairedItem: { item: i },
 					});
-					continue;
+				} else {
+					throw error;
 				}
-
-				throw error;
 			}
 		}
 

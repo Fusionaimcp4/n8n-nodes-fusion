@@ -5,7 +5,7 @@ class FusionApi {
     constructor() {
         this.name = 'fusionApi';
         this.displayName = 'Fusion API';
-        this.documentationUrl = 'https://api.mcp4.ai/docs';
+        this.documentationUrl = 'https://api.mcp4.ai/api-docs/';
         this.properties = [
             {
                 displayName: 'API Key',
@@ -24,22 +24,27 @@ class FusionApi {
                 type: 'string',
                 default: 'https://api.mcp4.ai',
                 required: false,
-                description: 'Base URL for the Fusion AI API (leave default unless using custom endpoint)',
+                description: 'Base URL for the Fusion AI API',
             },
         ];
         this.authenticate = {
             type: 'generic',
             properties: {
                 headers: {
-                    Authorization: '=Bearer {{$credentials.apiKey}}',
+                    Authorization: '=ApiKey {{$credentials.apiKey}}',
                 },
             },
         };
         this.test = {
             request: {
                 baseURL: '={{$credentials.baseUrl}}',
-                url: '/api/user/profile',
-                method: 'GET',
+                url: '/api/chat',
+                method: 'POST',
+                body: {
+                    prompt: 'Test connection',
+                    provider: 'neuroswitch',
+                    max_tokens: 1,
+                },
             },
         };
     }

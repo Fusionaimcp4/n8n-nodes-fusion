@@ -1,0 +1,157 @@
+{
+  "name": "Fusion AI Agent Integration Example",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-3-sonnet",
+        "temperature": 0.3,
+        "maxTokens": 1024,
+        "topP": 0.9,
+        "frequencyPenalty": 0,
+        "presencePenalty": 0
+      },
+      "id": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+      "name": "Fusion Chat Model",
+      "type": "n8n-nodes-fusion.fusionChatModel",
+      "typeVersion": 1,
+      "position": [
+        300,
+        200
+      ],
+      "credentials": {
+        "fusionApi": {
+          "id": "fusion-api-credentials",
+          "name": "Fusion API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an expert document analyzer. Analyze documents thoroughly and provide structured insights including key points, themes, and actionable recommendations."
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "Analyze this quarterly report and provide key insights: {{ $json.document_text }}"
+            }
+          ]
+        }
+      },
+      "id": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+      "name": "AI Document Analyzer",
+      "type": "@n8n/n8n-nodes-langchain.aiAgent",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "document_text",
+              "name": "document_text",
+              "value": "Q3 2024 Financial Report\n\nRevenue: $2.5M (+15% YoY)\nExpenses: $1.8M (+8% YoY)\nNet Profit: $700K (+35% YoY)\n\nKey Highlights:\n- Strong growth in SaaS subscriptions\n- Reduced customer acquisition costs\n- Expansion into European markets\n- Launch of AI-powered features\n\nChallenges:\n- Increased competition\n- Rising infrastructure costs\n- Talent retention issues\n\nOutlook:\n- Targeting $3M revenue in Q4\n- Planning Series B funding round\n- International expansion roadmap",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4d5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+      "name": "Sample Document",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        300,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Display the AI analysis results\nconst analysis = $input.first().json;\n\nreturn {\n  json: {\n    analysis_summary: analysis.content || analysis.text || analysis,\n    timestamp: new Date().toISOString(),\n    model_used: 'Fusion AI - Claude 3 Sonnet',\n    status: 'Analysis Complete'\n  }\n};"
+      },
+      "id": "5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b",
+      "name": "Format Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        700,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Sample Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fusion Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Document Analyzer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Document Analyzer": {
+      "main": [
+        [
+          {
+            "node": "Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sample Document": {
+      "main": [
+        [
+          {
+            "node": "AI Document Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "versionId": "1",
+  "meta": {
+    "instanceId": "fusion-example-ai-agent"
+  },
+  "id": "fusion-ai-agent-example",
+  "tags": [
+    {
+      "id": "fusion-examples",
+      "name": "Fusion Examples"
+    }
+  ]
+}

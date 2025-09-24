@@ -8,15 +8,20 @@ export declare class FusionApi implements ICredentialType {
         readonly type: "generic";
         readonly properties: {
             readonly headers: {
-                readonly Authorization: "=Bearer {{$credentials.apiKey}}";
+                readonly Authorization: "=ApiKey {{$credentials.apiKey}}";
             };
         };
     };
     test: {
         readonly request: {
             readonly baseURL: "={{$credentials.baseUrl}}";
-            readonly url: "/api/user/profile";
-            readonly method: "GET";
+            readonly url: "/api/chat";
+            readonly method: "POST";
+            readonly body: {
+                readonly prompt: "Test connection";
+                readonly provider: "neuroswitch";
+                readonly max_tokens: 1;
+            };
         };
     };
 }

@@ -1,14 +1,14 @@
-import type { IExecuteFunctions, ILoadOptionsFunctions, INodeExecutionData, INodeType, INodeTypeDescription } from 'n8n-workflow';
-export declare class Fusion implements INodeType {
+import type { IExecuteFunctions, ILoadOptionsFunctions, INodeType, INodeTypeDescription, INodeExecutionData } from 'n8n-workflow';
+export declare class FusionChatModel implements INodeType {
     description: INodeTypeDescription;
     methods: {
         loadOptions: {
             getModels(this: ILoadOptionsFunctions): Promise<{
-                name: string;
+                name: any;
                 value: any;
             }[]>;
         };
     };
     execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]>;
 }
-//# sourceMappingURL=Fusion.node.d.ts.map
+//# sourceMappingURL=FusionChatModel.node.d.ts.map

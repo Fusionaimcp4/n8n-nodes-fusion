@@ -1,0 +1,17 @@
+{
+  "name": "fusionChatModel",
+  "displayName": "Fusion Chat Model",
+  "description": "Use Fusion as a chat LLM",
+  "version": 1,
+  "group": ["ai"],
+  "icon": "file:fusion.svg",
+  "codex": {
+    "categories": ["AI", "Language Models"]
+  },
+  "defaults": {
+    "name": "Fusion Chat Model"
+  },
+  "inputs": [],
+  "outputs": ["ai_languageModel"],
+  "credentials": ["fusionApi"]
+}
