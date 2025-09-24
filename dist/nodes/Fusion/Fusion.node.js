@@ -7,7 +7,7 @@ class Fusion {
             displayName: 'Fusion AI',
             name: 'fusion',
             icon: 'file:fusion.svg',
-            group: ['ai'],
+            group: ['transform'],
             version: 1,
             subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
             description: 'Interact with Fusion AI (NeuroSwitch multi-provider orchestration)',

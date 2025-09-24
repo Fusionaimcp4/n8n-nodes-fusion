@@ -72,15 +72,16 @@ npm install n8n-nodes-fusion
 
 ### Two Node Types Available
 
-**1. Fusion AI Node (Regular Chat)**
+**1. Fusion AI Node (Regular Chat) - ✅ RECOMMENDED**
 - Direct API calls with full control
 - Multiple operations: Chat, Models, Account
 - Perfect for building custom workflows
+- **Guaranteed to work in all n8n versions**
 
-**2. Fusion Chat Model (AI Language Model Provider)**
-- Appears in "Language Models" panel
-- Compatible with AI Agent workflows  
-- Seamless integration with n8n's AI features
+**2. Fusion Chat Model (AI Language Model Provider) - ⚠️ EXPERIMENTAL**
+- Intended for "Language Models" panel
+- May not connect to AI Agent due to n8n limitations
+- Use Fusion AI node as alternative
 
 ### Adding Fusion AI Node to Workflows
 
@@ -318,8 +319,28 @@ Content-Type: application/json
 
 ### Cannot Connect to AI Agent
 
+**Current Limitation**: n8n's AI Agent may not recognize custom AI Language Model nodes due to internal implementation restrictions.
+
+**Workaround Options**:
+
+1. **Use Fusion AI Node (Direct)**: 
+   - Use the regular "Fusion AI" node instead
+   - Set Resource: "Chat", Operation: "Send Message"
+   - This provides direct API access with full control
+
+2. **Custom Workflow**:
+   - Use HTTP Request node to call Fusion API directly
+   - Format: `POST https://api.mcp4.ai/api/chat`
+   - Headers: `Authorization: ApiKey your-key`
+   - Body: `{"prompt": "your message", "provider": "neuroswitch"}`
+
+3. **Wait for n8n Update**: 
+   - Future n8n versions may support custom AI Language Model nodes
+   - Monitor n8n community updates
+
+**If Connection Works**:
 1. **Node type**: Ensure using "Fusion Chat Model" (not "Fusion AI")
-2. **Connection type**: Look for "Language Model" connection port on AI Agent
+2. **Connection type**: Look for "Language Model" connection port on AI Agent  
 3. **Node restart**: Try deleting and re-adding the Fusion Chat Model node
 4. **Version check**: Ensure n8n version supports AI Language Model connections
 

@@ -3,7 +3,7 @@
   "displayName": "Fusion Chat Model",
   "description": "Use Fusion as a chat LLM",
   "version": 1,
-  "group": ["ai"],
+  "group": ["transform"],
   "icon": "file:fusion.svg",
   "codex": {
     "categories": ["AI", "Language Models"]
