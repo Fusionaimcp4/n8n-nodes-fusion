@@ -4,7 +4,6 @@ import {
 	INodeType,
 	INodeTypeDescription,
 	INodeExecutionData,
-	NodeConnectionType,
 } from 'n8n-workflow';
 
 export class FusionChat implements INodeType {
@@ -19,8 +18,8 @@ export class FusionChat implements INodeType {
 		defaults: {
 			name: 'Fusion Chat',
 		},
-		inputs: ['Main'],
-		outputs: ['Main'],
+		inputs: ['main'],
+		outputs: ['main'],
 		credentials: [
 			{
 				name: 'fusionApi',
