@@ -5,6 +5,8 @@ import {
 	INodeTypeDescription,
 	INodeExecutionData,
 	NodeConnectionType,
+	ISupplyDataFunctions,
+	SupplyData,
 } from 'n8n-workflow';
 
 export class FusionChatModel implements INodeType {
@@ -135,12 +137,12 @@ export class FusionChatModel implements INodeType {
 		},
 	};
 
-	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+	async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
 		const credentials = await this.getCredentials('fusionApi');
 		const baseUrl = (credentials.baseUrl as string)?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
 
-		const model = this.getNodeParameter('model', 0) as string;
-		const options = this.getNodeParameter('options', 0) as {
+		const model = this.getNodeParameter('model', itemIndex) as string;
+		const options = this.getNodeParameter('options', itemIndex) as {
 			temperature?: number;
 			maxTokens?: number;
 			topP?: number;
@@ -148,55 +150,43 @@ export class FusionChatModel implements INodeType {
 			presencePenalty?: number;
 		};
 
-		// Create a function that can be called by AI Agent
-		const chatModel = async (messages: Array<{ role: string; content: string }>) => {
-			// Convert messages to prompt format for Fusion API
-			const prompt = messages.map(msg => msg.content).join('\n');
-
-			const requestBody = {
-				prompt,
-				provider: model.includes('/') ? model.split('/')[0] : 'neuroswitch',
-				model,
-				temperature: options.temperature ?? 0.3,
-				max_tokens: options.maxTokens ?? 1024,
-				top_p: options.topP ?? 1,
-				frequency_penalty: options.frequencyPenalty ?? 0,
-				presence_penalty: options.presencePenalty ?? 0,
-			};
-
-			const response = await fetch(`${baseUrl}/api/chat`, {
-				method: 'POST',
+		return {
+			response: {
+				provider: 'fusion',
+				kind: 'chat',
+				baseUrl: `${baseUrl}/api/chat`,
 				headers: {
 					Authorization: `ApiKey ${credentials.apiKey}`,
 					'Content-Type': 'application/json',
 				},
-				body: JSON.stringify(requestBody),
-			});
-
-			if (!response.ok) {
-				throw new Error(`Fusion AI API error: ${response.status} ${response.statusText}`);
-			}
-
-			const data = await response.json() as any;
-			return {
-				choices: [
-					{
-						message: {
-							role: 'assistant',
-							content: data.response?.text || data.text || '',
-						},
-					},
-				],
-			};
-		};
-
-		return [
-			[
-				{
-					json: { chatModel },
-					pairedItem: { item: 0 },
+				config: {
+					model,
+					temperature: options.temperature ?? 0.3,
+					max_tokens: options.maxTokens ?? 1024,
+					top_p: options.topP ?? 1,
+					frequency_penalty: options.frequencyPenalty ?? 0,
+					presence_penalty: options.presencePenalty ?? 0,
 				},
-			],
-		];
+				requestTransform: {
+					body: (data: any) => {
+						if (data.messages && Array.isArray(data.messages)) {
+							// Transform messages[] array to single prompt string for Fusion API
+							const prompt = data.messages.map((msg: any) => msg.content).join('\n');
+							return {
+								prompt,
+								provider: data.model?.includes('/') ? data.model.split('/')[0] : 'neuroswitch',
+								model: data.model || model,
+								temperature: data.temperature ?? options.temperature ?? 0.3,
+								max_tokens: data.max_tokens ?? options.maxTokens ?? 1024,
+								top_p: data.top_p ?? options.topP ?? 1,
+								frequency_penalty: data.frequency_penalty ?? options.frequencyPenalty ?? 0,
+								presence_penalty: data.presence_penalty ?? options.presencePenalty ?? 0,
+							};
+						}
+						return data;
+					},
+				},
+			},
+		};
 	}
 }
