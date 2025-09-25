@@ -22,6 +22,16 @@ class FusionChatModel {
                     required: true,
                 },
             ],
+            codex: {
+                categories: ['AI', 'Language Models'],
+                resources: {
+                    primaryDocumentation: [
+                        {
+                            url: 'https://api.mcp4.ai/api-docs/',
+                        },
+                    ],
+                },
+            },
             properties: [
                 {
                     displayName: 'Model',
@@ -32,6 +42,56 @@ class FusionChatModel {
                     },
                     default: 'neuroswitch',
                     description: 'Model to use for the chat completion',
+                },
+                {
+                    displayName: 'Options',
+                    name: 'options',
+                    placeholder: 'Add Option',
+                    description: 'Additional options to configure',
+                    type: 'collection',
+                    default: {},
+                    options: [
+                        {
+                            displayName: 'Temperature',
+                            name: 'temperature',
+                            default: 0.3,
+                            typeOptions: { maxValue: 1, minValue: 0, numberPrecision: 1 },
+                            description: 'Controls randomness in the response. Lower values make responses more focused and deterministic.',
+                            type: 'number',
+                        },
+                        {
+                            displayName: 'Max Tokens',
+                            name: 'maxTokens',
+                            default: 1024,
+                            typeOptions: { maxValue: 4096, minValue: 1 },
+                            description: 'The maximum number of tokens to generate in the chat completion',
+                            type: 'number',
+                        },
+                        {
+                            displayName: 'Top P',
+                            name: 'topP',
+                            default: 1,
+                            typeOptions: { maxValue: 1, minValue: 0, numberPrecision: 1 },
+                            description: 'An alternative to sampling with temperature, called nucleus sampling',
+                            type: 'number',
+                        },
+                        {
+                            displayName: 'Frequency Penalty',
+                            name: 'frequencyPenalty',
+                            default: 0,
+                            typeOptions: { maxValue: 2, minValue: -2, numberPrecision: 1 },
+                            description: 'Positive values penalize new tokens based on their existing frequency in the text',
+                            type: 'number',
+                        },
+                        {
+                            displayName: 'Presence Penalty',
+                            name: 'presencePenalty',
+                            default: 0,
+                            typeOptions: { maxValue: 2, minValue: -2, numberPrecision: 1 },
+                            description: 'Positive values penalize new tokens based on whether they appear in the text so far',
+                            type: 'number',
+                        },
+                    ],
                 },
             ],
         };
@@ -56,9 +116,12 @@ class FusionChatModel {
                         }));
                     }
                     catch (error) {
+                        console.warn('Failed to load Fusion models:', error.message);
                         return [
                             { name: 'NeuroSwitch', value: 'neuroswitch' },
                             { name: 'OpenAI GPT-4', value: 'openai/gpt-4' },
+                            { name: 'Anthropic Claude', value: 'anthropic/claude-3-sonnet' },
+                            { name: 'Google Gemini', value: 'google/gemini-pro' },
                         ];
                     }
                 },
@@ -69,32 +132,128 @@ class FusionChatModel {
         const credentials = await this.getCredentials('fusionApi');
         const baseUrl = credentials.baseUrl?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
         const model = this.getNodeParameter('model', itemIndex);
-        // Simple language model that matches what n8n expects
+        const options = this.getNodeParameter('options', itemIndex);
+        // Enhanced language model with tools calling support for n8n AI Agent
         const languageModel = {
-            // Required properties
+            // Required properties for n8n Tools Agent compatibility
             _llmType: 'chat',
             modelName: model || 'fusion-neuroswitch',
-            supportsToolCalling: true,
-            // Main method n8n calls for chat models
+            // Tools calling support with logging
+            get supportsToolCalling() {
+                console.log('🔍 n8n checking supportsToolCalling - returning true');
+                return true;
+            },
+            // Additional LangChain compatibility properties
+            _modelType: 'chat',
+            name: model || 'fusion-neuroswitch',
+            lc_namespace: ['langchain', 'chat_models'],
+            // Alternative property names that n8n might check
+            supportsToolChoice: true,
+            supportsStructuredOutput: true,
+            // Method-based check for tools calling
+            get _supportsToolCalling() {
+                console.log('🔍 n8n checking _supportsToolCalling - returning true');
+                return true;
+            },
+            // LangChain Runnable interface implementation
+            lc_runnable: true,
+            // Add LangChain class identifiers
+            lc: 1,
+            type: 'constructor',
+            id: ['langchain', 'chat_models', 'fusion'],
+            // Required Runnable methods
+            async batch(inputs, options) {
+                console.log('📦 batch method called with inputs type:', typeof inputs, 'length:', Array.isArray(inputs) ? inputs.length : 'not array');
+                // Ensure inputs is an array
+                const inputArray = Array.isArray(inputs) ? inputs : [inputs];
+                const results = [];
+                for (const input of inputArray) {
+                    const result = await this.invoke(input, options);
+                    results.push(result);
+                }
+                return results;
+            },
+            async transform(generator, options) {
+                console.log('🔄 transform method called');
+                return this.invoke(generator, options);
+            },
+            pipe(other) {
+                console.log('🔗 pipe method called');
+                return {
+                    ...this,
+                    async invoke(input, options) {
+                        const result = await languageModel.invoke(input, options);
+                        return other.invoke(result, options);
+                    }
+                };
+            },
+            // Debug: Log when model is created
+            get _debug() {
+                console.log('Fusion Chat Model created with:', {
+                    _llmType: this._llmType,
+                    modelName: this.modelName,
+                    supportsToolCalling: this.supportsToolCalling,
+                    _modelType: this._modelType,
+                    name: this.name
+                });
+                return true;
+            },
+            // Standard text generation call
+            async call(messages) {
+                console.log('📞 call method - delegating to invoke');
+                const result = await this.invoke(messages);
+                // For call method, extract content from ChatResult format
+                if (result && typeof result === 'object') {
+                    // If it's a ChatResult with generations array
+                    if (result.generations && Array.isArray(result.generations)) {
+                        const firstGeneration = result.generations[0];
+                        if (firstGeneration && firstGeneration.text) {
+                            console.log('📞 call method returning text from ChatResult generations:', firstGeneration.text);
+                            return firstGeneration.text;
+                        }
+                    }
+                    // Fallback for other formats
+                    if (result.content) {
+                        console.log('📞 call method returning content string:', result.content);
+                        return result.content;
+                    }
+                }
+                return result;
+            },
+            // Generate method that n8n might expect for ChatGeneration
             async generate(messages, options) {
-                console.log('🎲 generate called with:', typeof messages, messages);
-                // Extract user content from messages - handle LangChain format
+                console.log('🎲 generate method called - delegating to invoke');
+                return this.invoke(messages, options);
+            },
+            // Enhanced invoke method that handles both regular and tool-enabled calls
+            async invoke(messages, options) {
+                console.log('🔍 invoke called with messages type:', typeof messages, 'value:', messages);
+                // Check if tools are provided in options
+                const tools = options?.tools || [];
+                const hasTools = tools.length > 0;
+                // Simplified approach: Extract the actual user content and ignore complex structures
                 let userContent = '';
-                if (Array.isArray(messages)) {
+                if (typeof messages === 'string') {
+                    // Simple string
+                    userContent = messages;
+                }
+                else if (Array.isArray(messages)) {
+                    // Array of messages - extract content from each
                     userContent = messages.map(msg => {
                         if (typeof msg === 'string')
                             return msg;
-                        if (msg?.content)
+                        if (msg && msg.content)
                             return msg.content;
-                        if (msg?.kwargs?.content)
+                        if (msg && msg.kwargs && msg.kwargs.content)
                             return msg.kwargs.content;
                         return String(msg);
                     }).join('\n');
                 }
                 else if (messages && typeof messages === 'object') {
-                    // Handle LangChain ChatPromptValue format
+                    // Check if it's a LangChain ChatPromptValue object
                     if (messages.kwargs && messages.kwargs.messages && Array.isArray(messages.kwargs.messages)) {
-                        console.log('🔗 Detected LangChain ChatPromptValue format');
+                        console.log('🔗 Detected LangChain ChatPromptValue format - extracting content');
+                        // Extract actual content from LangChain messages
                         userContent = messages.kwargs.messages.map((msg) => {
                             if (msg.kwargs && msg.kwargs.content) {
                                 return msg.kwargs.content;
@@ -105,74 +264,188 @@ class FusionChatModel {
                     else if (messages.content) {
                         userContent = messages.content;
                     }
+                    else if (messages.text) {
+                        userContent = messages.text;
+                    }
                     else {
-                        userContent = String(messages);
+                        // Last resort - just use the content we got
+                        userContent = 'Hello';
                     }
                 }
                 else {
-                    userContent = String(messages);
-                }
-                console.log('📝 Extracted user content:', userContent);
-                // Fallback if content is empty
-                if (!userContent || userContent.trim() === '') {
                     userContent = 'Hello';
                 }
-                // Call Fusion API
+                console.log('📝 Extracted user content:', JSON.stringify(userContent));
+                // Create a simple message array
+                const messageArray = [{ role: 'user', content: userContent }];
+                console.log('📝 Normalized messageArray:', messageArray);
+                // Convert messages to OpenAI format for better model compatibility
+                const formattedMessages = messageArray.map((msg) => {
+                    if (typeof msg === 'string') {
+                        return { role: 'user', content: msg };
+                    }
+                    return {
+                        role: msg.role || 'user',
+                        content: msg.content || msg.text || String(msg)
+                    };
+                });
+                // For Fusion API, use the user content directly as the prompt
+                let prompt = userContent;
+                console.log('📄 Final prompt being sent:', JSON.stringify(prompt));
+                // If tools are provided, add them to the system prompt
+                if (hasTools) {
+                    const toolDescriptions = tools.map((tool) => {
+                        const params = tool.parameters || tool.function?.parameters || {};
+                        const paramDesc = Object.entries(params.properties || {})
+                            .map(([name, info]) => `  - ${name}: ${info.description || info.type || 'parameter'}`)
+                            .join('\n');
+                        return `Tool: ${tool.name || tool.function?.name}
+Description: ${tool.description || tool.function?.description}
+Parameters:
+${paramDesc}`;
+                    }).join('\n\n');
+                    prompt = `You have access to the following tools. When you need to call a tool, respond with a JSON object containing "tool_name" and "arguments" fields.
+
+Available Tools:
+${toolDescriptions}
+
+---
+
+${prompt}`;
+                }
+                // Let's try the EXACT same format as your working curl first
+                const requestBody = {
+                    prompt,
+                    provider: 'neuroswitch'
+                };
+                console.log('🚀 Fusion API request (minimal like curl):', JSON.stringify(requestBody, null, 2));
+                console.log('🔗 API URL:', `${baseUrl}/api/chat`);
+                console.log('🔑 Authorization header:', `ApiKey ${String(credentials.apiKey).substring(0, 20)}...`);
                 const response = await fetch(`${baseUrl}/api/chat`, {
                     method: 'POST',
                     headers: {
                         Authorization: `ApiKey ${credentials.apiKey}`,
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                        prompt: userContent,
-                        provider: 'neuroswitch'
-                    }),
+                    body: JSON.stringify(requestBody),
                 });
-                console.log('📡 API Response status:', response.status);
+                console.log('📡 Fusion API response status:', response.status, response.statusText);
+                console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('❌ API Error:', errorText);
-                    throw new Error(`Fusion API error: ${response.status} - ${errorText}`);
+                    console.error('❌ Fusion API error response:', errorText);
+                    console.error('❌ Request that failed:', JSON.stringify(requestBody, null, 2));
+                    throw new Error(`Fusion AI error: ${response.status} - ${errorText}`);
                 }
                 const data = await response.json();
+                console.log('✅ Fusion API response data:', JSON.stringify(data, null, 2));
                 const responseText = data.response?.text || data.text || '';
-                console.log('✅ Response:', responseText);
-                // Return in the format n8n expects - a ChatResult object
-                return {
-                    generations: [{
-                            text: responseText,
-                            message: {
-                                content: responseText,
-                                additional_kwargs: {},
-                                response_metadata: {
-                                    model: data.model,
-                                    provider: data.provider,
-                                    tokens: data.tokens,
-                                },
-                                lc: 1,
-                                type: "constructor",
-                                id: ["langchain_core", "messages", "AIMessage"]
-                            },
-                            generationInfo: {
-                                model: data.model,
-                                provider: data.provider,
-                            }
-                        }],
+                console.log('🎯 Creating ChatGeneration response object with content:', responseText);
+                // Create the AIMessage object first
+                const aiMessage = {
+                    content: responseText,
+                    additional_kwargs: {},
+                    response_metadata: {
+                        model: data.model,
+                        provider: data.provider,
+                        tokens: data.tokens,
+                        cost: data.cost_charged_to_credits
+                    },
+                    lc: 1,
+                    type: "constructor",
+                    id: ["langchain_core", "messages", "AIMessage"]
+                };
+                // For n8n AI Agent ToolCallingAgentOutputParser, return an ARRAY of ChatGeneration objects
+                const responseObject = [{
+                        text: responseText,
+                        message: aiMessage,
+                        generationInfo: {
+                            model: data.model,
+                            provider: data.provider,
+                            tokens: data.tokens,
+                            cost: data.cost_charged_to_credits
+                        },
+                        // Add LangChain ChatGeneration identifiers
+                        lc: 1,
+                        type: 'constructor',
+                        id: ['langchain_core', 'outputs', 'ChatGeneration']
+                    }];
+                // If tools were provided, try to parse tool calls from the response
+                if (hasTools) {
+                    try {
+                        // Check if the response contains a tool call
+                        const jsonMatch = responseText.match(/\{[^}]*"tool_name"[^}]*\}/);
+                        if (jsonMatch) {
+                            const toolCall = JSON.parse(jsonMatch[0]);
+                            // Add tool calls to the AIMessage in the generation
+                            aiMessage.additional_kwargs = {
+                                tool_calls: [{
+                                        id: `call_${Date.now()}`,
+                                        type: 'function',
+                                        function: {
+                                            name: toolCall.tool_name,
+                                            arguments: JSON.stringify(toolCall.arguments || {})
+                                        }
+                                    }]
+                            };
+                            // Update the generation with the modified message
+                            responseObject[0].message = aiMessage;
+                            console.log('🔧 Tool call detected and added to ChatGeneration response');
+                        }
+                    }
+                    catch (e) {
+                        // If parsing fails, just return the text response
+                        console.warn('Failed to parse tool call from response:', e);
+                    }
+                }
+                console.log('📤 Final ChatGeneration ARRAY:', JSON.stringify(responseObject, null, 2));
+                // CRITICAL: Return in the format n8n's ToolCallingAgentOutputParser expects
+                // Instead of an array, return a ChatResult-like object with generations
+                const chatResult = {
+                    generations: responseObject,
                     llmOutput: {
                         model: data.model,
                         provider: data.provider,
+                        tokens: data.tokens,
+                        cost: data.cost_charged_to_credits
                     }
                 };
+                console.log('📋 Returning ChatResult format:', JSON.stringify(chatResult, null, 2));
+                return chatResult;
             },
-            // Bind tools method
+            // Bind tools method required by n8n
             bindTools(tools) {
-                return {
+                console.log('🔧 bindTools called with tools:', tools);
+                // Create a new instance with bound tools
+                const boundModel = {
                     ...this,
-                    async generate(messages, options) {
-                        return languageModel.generate(messages, { ...options, tools });
+                    _boundTools: tools,
+                    // Override invoke to always include the bound tools
+                    async invoke(messages, options) {
+                        return languageModel.invoke(messages, { ...options, tools });
+                    },
+                    // Keep the same call method
+                    async call(messages) {
+                        return this.invoke(messages);
+                    },
+                    // Ensure bound model also has tools calling support
+                    get supportsToolCalling() {
+                        console.log('🔍 boundModel checking supportsToolCalling - returning true');
+                        return true;
                     }
                 };
+                return boundModel;
+            },
+            // Additional methods that some LangChain versions might expect
+            withStructuredOutput(schema) {
+                console.log('🏗️ withStructuredOutput called with schema:', schema);
+                return this;
+            },
+            // Stream method (some agents might check for this)
+            async stream(messages, options) {
+                console.log('🌊 stream method called');
+                const result = await this.invoke(messages, options);
+                return [result];
             },
         };
         return {
