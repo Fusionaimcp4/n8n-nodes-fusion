@@ -7,103 +7,101 @@ import {
 	NodeConnectionType,
 } from 'n8n-workflow';
 
-// LangChain imports with fallback handling
-let ChatOpenAI: any;
-
-try {
-	const openai = require('@langchain/openai');
-	ChatOpenAI = openai.ChatOpenAI;
-} catch (error) {
-	// Fallback implementation when LangChain is not available
-	ChatOpenAI = class ChatOpenAI {
-		constructor(opts: any) {
-			Object.assign(this, opts);
-		}
-		
-		async invoke(messages: any[]): Promise<any> {
-			// This is a basic fallback - in real usage, LangChain should be available
-			throw new Error('LangChain is required for FusionChatModel to work properly');
-		}
-	};
-}
+import { BaseMessage, AIMessage } from '@langchain/core/messages';
+import { ChatGeneration, ChatResult } from '@langchain/core/outputs';
+import {
+	BaseChatModel,
+	BaseChatModelCallOptions,
+} from '@langchain/core/language_models/chat_models';
 
 /**
- * Custom ChatOpenAI class that works with Fusion API
+ * Minimal LangChain chat wrapper for Fusion API
  */
-class FusionChatOpenAI extends ChatOpenAI {
-	private fusionApiKey: string;
-	private fusionBaseUrl: string;
-	private fusionProvider: string;
+class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
+	private readonly apiKey: string;
+	private readonly baseUrl: string;
+	private readonly provider: string;
 
-	constructor(opts: {
-		apiKey: string;
-		baseURL: string;
-		model: string;
-		provider: string;
-		[key: string]: any;
-	}) {
-		// Initialize with dummy OpenAI config since we'll override the API calls
-		super({
-			...opts,
-			apiKey: 'fusion-placeholder', // We'll use Fusion API instead
-			configuration: {
-				baseURL: opts.baseURL,
-			},
-		});
-		
-		this.fusionApiKey = opts.apiKey;
-		this.fusionBaseUrl = opts.baseURL;
-		this.fusionProvider = opts.provider;
+	constructor(opts: { apiKey: string; baseUrl: string; provider: string }) {
+		super({});
+		this.apiKey = opts.apiKey;
+		this.baseUrl = opts.baseUrl.replace(/\/+$/, '');
+		this.provider = opts.provider || 'neuroswitch';
 	}
 
-	async _generate(messages: any[], options?: any): Promise<any> {
-		// Convert LangChain messages to simple prompt
-		const prompt = messages
-			.map((msg: any) => {
-				const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-				return content;
-			})
-			.join('\n');
+	_llmType(): string {
+		return 'fusion';
+	}
 
-		const response = await fetch(`${this.fusionBaseUrl}/api/chat`, {
+	/** Convert LC messages -> plain prompt (simple join) */
+	private messagesToPrompt(messages: BaseMessage[]): string {
+		const pick = (m: any) => {
+			const c = m?.content;
+			if (typeof c === 'string') return c;
+			if (Array.isArray(c)) {
+				return c
+					.map((p: any) =>
+						typeof p?.text === 'string' ? p.text : '',
+					)
+					.join('\n');
+			}
+			return String(c ?? '');
+		};
+		return messages.map(pick).filter(Boolean).join('\n');
+	}
+
+	/** Core generation for LangChain */
+	public async _generate(
+		messages: BaseMessage[],
+		_options?: BaseChatModelCallOptions,
+		_runManager?: any,
+	): Promise<ChatResult> {
+		const prompt = this.messagesToPrompt(messages);
+
+		const res = await fetch(`${this.baseUrl}/api/chat`, {
 			method: 'POST',
 			headers: {
-				Authorization: `ApiKey ${this.fusionApiKey}`,
+				Authorization: `ApiKey ${this.apiKey}`,
 				'Content-Type': 'application/json',
 			},
-			body: JSON.stringify({
-				prompt,
-				provider: this.fusionProvider,
-				model: this.model,
-				temperature: this.temperature || 0.7,
-				max_tokens: this.maxTokens || 1024,
-				top_p: this.topP || 1,
-				frequency_penalty: this.frequencyPenalty || 0,
-				presence_penalty: this.presencePenalty || 0,
-			}),
+			body: JSON.stringify({ prompt, provider: this.provider }),
 		});
 
-		if (!response.ok) {
-			throw new Error(`Fusion API error: ${response.status} - ${await response.text()}`);
+		if (!res.ok) {
+			throw new Error(
+				`Fusion API error: ${res.status} - ${await res.text()}`,
+			);
 		}
 
-		const data = await response.json() as any;
+		const data = (await res.json()) as any;
 		const text = data?.response?.text ?? data?.text ?? '';
 
-		// Return in LangChain expected format
+		// Construct AIMessage
+		const aiMsg = new AIMessage({
+			content: text,
+			response_metadata: {
+				model: data?.model,
+				provider: data?.provider,
+				tokens: data?.tokens,
+				cost: data?.cost_charged_to_credits,
+			},
+		});
+
+		// Construct generation object (typed)
+		const generation: ChatGeneration = {
+			text,
+			message: aiMsg,
+			generationInfo: {
+				model: data?.model,
+				provider: data?.provider,
+				tokens: data?.tokens,
+				cost: data?.cost_charged_to_credits,
+			},
+		};
+
+		// Return full ChatResult
 		return {
-			generations: [{
-				text,
-				message: {
-					content: text,
-					response_metadata: {
-						model: data?.model,
-						provider: data?.provider,
-						tokens: data?.tokens,
-						cost: data?.cost_charged_to_credits,
-					},
-				},
-			}],
+			generations: [generation],
 			llmOutput: {
 				model: data?.model,
 				provider: data?.provider,
@@ -120,111 +118,30 @@ export class FusionChatModel implements INodeType {
 		name: 'fusionChatModel',
 		icon: 'file:fusion.svg',
 		group: ['transform'],
-		version: [1],
-		description: 'For advanced usage with an AI chain',
-		defaults: {
-			name: 'Fusion Chat Model',
-		},
+		version: 1,
+		subtitle: 'Language Model',
+		description: 'Chat Model for Fusion AI',
+		defaults: { name: 'Fusion Chat Model' },
+		inputs: [],
+		// Expose proper AI language model output so AI Agent connects
+		outputs: ['AiLanguageModel'],
+		credentials: [{ name: 'fusionApi', required: true }],
 		codex: {
-			categories: ['AI'],
-			subcategories: {
-				AI: ['Language Models', 'Root Nodes'],
-				'Language Models': ['Chat Models (Recommended)'],
-			},
+			categories: ['AI', 'Language Models'],
 			resources: {
 				primaryDocumentation: [
-					{
-						url: 'https://api.mcp4.ai/api-docs/',
-					},
+					{ url: 'https://api.mcp4.ai/api-docs/' },
 				],
 			},
 		},
-		inputs: [],
-		outputs: [NodeConnectionType.AiLanguageModel],
-		outputNames: ['Model'],
-		credentials: [
-			{
-				name: 'fusionApi',
-				required: true,
-			},
-		],
 		properties: [
 			{
 				displayName: 'Model',
 				name: 'model',
 				type: 'options',
-				description: 'The model which will generate the completion.',
-				typeOptions: {
-					loadOptionsMethod: 'getModels',
-				},
+				typeOptions: { loadOptionsMethod: 'getModels' },
 				default: 'neuroswitch',
-			},
-			{
-				displayName: 'Options',
-				name: 'options',
-				placeholder: 'Add Option',
-				description: 'Additional options to add',
-				type: 'collection',
-				default: {},
-				options: [
-					{
-						displayName: 'Frequency Penalty',
-						name: 'frequencyPenalty',
-						default: 0,
-						typeOptions: { maxValue: 2, minValue: -2, numberPrecision: 1 },
-						description: 'Positive values penalize new tokens based on their existing frequency in the text so far',
-						type: 'number',
-					},
-					{
-						displayName: 'Maximum Number of Tokens',
-						name: 'maxTokens',
-						default: 1024,
-						description: 'The maximum number of tokens to generate in the completion',
-						type: 'number',
-						typeOptions: {
-							maxValue: 32768,
-							minValue: 1,
-						},
-					},
-					{
-						displayName: 'Presence Penalty',
-						name: 'presencePenalty',
-						default: 0,
-						typeOptions: { maxValue: 2, minValue: -2, numberPrecision: 1 },
-						description: 'Positive values penalize new tokens based on whether they appear in the text so far',
-						type: 'number',
-					},
-					{
-						displayName: 'Sampling Temperature',
-						name: 'temperature',
-						default: 0.7,
-						typeOptions: { maxValue: 2, minValue: 0, numberPrecision: 1 },
-						description: 'Controls randomness: Lowering results in less random completions',
-						type: 'number',
-					},
-					{
-						displayName: 'Timeout',
-						name: 'timeout',
-						default: 60000,
-						description: 'Maximum amount of time a request is allowed to take in milliseconds',
-						type: 'number',
-					},
-					{
-						displayName: 'Max Retries',
-						name: 'maxRetries',
-						default: 2,
-						description: 'Maximum number of retries to attempt',
-						type: 'number',
-					},
-					{
-						displayName: 'Top P',
-						name: 'topP',
-						default: 1,
-						typeOptions: { maxValue: 1, minValue: 0, numberPrecision: 1 },
-						description: 'Controls diversity via nucleus sampling',
-						type: 'number',
-					},
-				],
+				description: 'Model (provider) to use',
 			},
 		],
 	};
@@ -249,7 +166,7 @@ export class FusionChatModel implements INodeType {
 
 					const models = (response.data || response || []) as any[];
 					return models.map((m: any) => ({
-						name: `${m.name || m.id_string} - $${m.input_cost_per_million_tokens || 'N/A'}/1M tokens`,
+						name: `${m.name || m.id_string}`,
 						value: m.id_string || m.id,
 					}));
 				} catch {
@@ -264,25 +181,19 @@ export class FusionChatModel implements INodeType {
 		itemIndex: number,
 	): Promise<SupplyData> {
 		const credentials = await this.getCredentials('fusionApi');
-		const baseUrl = (credentials.baseUrl as string) || 'https://api.mcp4.ai';
-		const modelName = this.getNodeParameter('model', itemIndex) as string;
-		const options = this.getNodeParameter('options', itemIndex, {}) as any;
+		const baseUrl =
+			(credentials.baseUrl as string) || 'https://api.mcp4.ai';
+		const provider =
+			(this.getNodeParameter('model', itemIndex) as string) ||
+			'neuroswitch';
 
-		// Determine provider from model name
-		const provider = modelName.includes('/') ? modelName.split('/')[0] : 'neuroswitch';
-
-		const model = new FusionChatOpenAI({
+		const model = new FusionLangChainChat({
 			apiKey: String(credentials.apiKey),
-			baseURL: baseUrl,
-			model: modelName,
+			baseUrl,
 			provider,
-			...options,
-			timeout: options.timeout ?? 60000,
-			maxRetries: options.maxRetries ?? 2,
 		});
 
-		return {
-			response: model,
-		};
+		// The AI Agent expects a LangChain ChatModel instance here
+		return { response: model };
 	}
 }

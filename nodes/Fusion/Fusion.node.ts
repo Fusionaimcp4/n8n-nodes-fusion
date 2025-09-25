@@ -14,13 +14,13 @@ export class Fusion implements INodeType {
 		icon: 'file:fusion.svg',
 		group: ['transform'],
 		version: 1,
-		subtitle: '={{$parameter["resource"] + ": " + $parameter["operation"]}}',
+		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description: 'Interact with Fusion AI (NeuroSwitch multi-provider orchestration)',
 		defaults: {
 			name: 'Fusion AI',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		inputs: ['main'],
+		outputs: ['main'],
 		credentials: [
 			{
 				name: 'fusionApi',
@@ -29,25 +29,28 @@ export class Fusion implements INodeType {
 		],
 		properties: [
 			{
-				displayName: 'Resource',
-				name: 'resource',
+				displayName: 'Operation',
+				name: 'operation',
 				type: 'options',
 				noDataExpression: true,
 				options: [
 					{
 						name: 'Chat',
 						value: 'chat',
-						description: 'AI Chat operations',
+						action: 'Send chat message',
+						description: 'Send a message to AI model and get response',
 					},
 					{
-						name: 'Models',
-						value: 'models',
-						description: 'AI Models operations',
+						name: 'List Models',
+						value: 'listModels',
+						action: 'List available models',
+						description: 'Get list of available AI models',
 					},
 					{
-						name: 'Account',
-						value: 'account',
-						description: 'Account operations',
+						name: 'Get Account Info',
+						value: 'getAccount',
+						action: 'Get account information',
+						description: 'Get account details and usage information',
 					},
 				],
 				default: 'chat',
@@ -65,12 +68,12 @@ export class Fusion implements INodeType {
 				options: [
 					{
 						name: 'Send Message',
-						value: 'chat',
+						value: 'sendMessage',
 						action: 'Send a message to AI model',
 						description: 'Send a message to an AI model and get a response',
 					},
 				],
-				default: 'chat',
+				default: 'sendMessage',
 			},
 			{
 				displayName: 'Operation',
@@ -105,12 +108,12 @@ export class Fusion implements INodeType {
 				options: [
 					{
 						name: 'Get Info',
-						value: 'getAccount',
+						value: 'getInfo',
 						action: 'Get account information',
 						description: 'Get account information and usage',
 					},
 				],
-				default: 'getAccount',
+				default: 'getInfo',
 			},
 			// Chat parameters
 			{
@@ -285,7 +288,7 @@ export class Fusion implements INodeType {
 
 				let responseData: any;
 
-				if (resource === 'chat' && operation === 'chat') {
+				if (resource === 'chat' && operation === 'sendMessage') {
 					const model = this.getNodeParameter('model', i) as string;
 					const message = this.getNodeParameter('message', i) as string;
 					const systemPrompt = this.getNodeParameter('systemPrompt', i, '') as string;
@@ -328,7 +331,7 @@ export class Fusion implements INodeType {
 						},
 					});
 
-				} else if (resource === 'account' && operation === 'getAccount') {
+				} else if (resource === 'account' && operation === 'getInfo') {
 					responseData = await this.helpers.httpRequest({
 						method: 'GET',
 						url: `${baseUrl}/api/account`,

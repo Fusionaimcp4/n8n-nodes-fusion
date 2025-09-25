@@ -19,8 +19,8 @@ export class FusionChat implements INodeType {
 		defaults: {
 			name: 'Fusion Chat',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		inputs: ['Main'],
+		outputs: ['Main'],
 		credentials: [
 			{
 				name: 'fusionApi',
