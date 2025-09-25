@@ -150,34 +150,139 @@ export class FusionChatModel implements INodeType {
 			presencePenalty?: number;
 		};
 
-		// Simple language model for n8n AI Agent (OpenRouter-style)
+		// Enhanced language model with tools calling support for n8n AI Agent
 		const languageModel = {
+			// Standard text generation call
 			async call(messages: any[]) {
-				// Convert messages to simple prompt for NeuroSwitch
-				const prompt = messages.map((msg: any) => msg.content).join('\n');
-				
+				return this.invoke(messages);
+			},
+
+			// Enhanced invoke method that handles both regular and tool-enabled calls
+			async invoke(messages: any[], options?: any) {
+				// Check if tools are provided in options
+				const tools = options?.tools || [];
+				const hasTools = tools.length > 0;
+
+				// Convert messages to OpenAI format for better model compatibility
+				const formattedMessages = messages.map((msg: any) => {
+					if (typeof msg === 'string') {
+						return { role: 'user', content: msg };
+					}
+					return {
+						role: msg.role || 'user',
+						content: msg.content || msg.text || String(msg)
+					};
+				});
+
+				// For Fusion API, we'll convert to prompt format
+				let prompt = '';
+				const systemMessages = formattedMessages.filter(m => m.role === 'system');
+				const userMessages = formattedMessages.filter(m => m.role !== 'system');
+
+				if (systemMessages.length > 0) {
+					prompt += systemMessages.map(m => m.content).join('\n') + '\n\n';
+				}
+				prompt += userMessages.map(m => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`).join('\n');
+
+				// If tools are provided, add them to the system prompt
+				if (hasTools) {
+					const toolDescriptions = tools.map((tool: any) => {
+						const params = tool.parameters || tool.function?.parameters || {};
+						const paramDesc = Object.entries(params.properties || {})
+							.map(([name, info]: [string, any]) => `  - ${name}: ${info.description || info.type || 'parameter'}`)
+							.join('\n');
+						
+						return `Tool: ${tool.name || tool.function?.name}
+Description: ${tool.description || tool.function?.description}
+Parameters:
+${paramDesc}`;
+					}).join('\n\n');
+
+					prompt = `You have access to the following tools. When you need to call a tool, respond with a JSON object containing "tool_name" and "arguments" fields.
+
+Available Tools:
+${toolDescriptions}
+
+---
+
+${prompt}`;
+				}
+
+				const requestBody: any = {
+					prompt,
+					provider: 'neuroswitch', // Use NeuroSwitch for best model selection
+					model: model || 'gpt-4o-mini',
+					temperature: options?.temperature ?? options.temperature ?? 0.3,
+					max_tokens: options?.maxTokens ?? options.maxTokens ?? 1024,
+					top_p: options?.topP ?? options.topP ?? 1,
+					frequency_penalty: options?.frequencyPenalty ?? options.frequencyPenalty ?? 0,
+					presence_penalty: options?.presencePenalty ?? options.presencePenalty ?? 0,
+				};
+
 				const response = await fetch(`${baseUrl}/api/chat`, {
 					method: 'POST',
 					headers: {
 						Authorization: `ApiKey ${credentials.apiKey}`,
 						'Content-Type': 'application/json',
 					},
-					body: JSON.stringify({
-						prompt,
-						provider: 'neuroswitch', // Always use NeuroSwitch for best provider selection
-						model: model || 'gpt-4o-mini',
-						temperature: options.temperature ?? 0.3,
-						max_tokens: options.maxTokens ?? 1024,
-					}),
+					body: JSON.stringify(requestBody),
 				});
 				
 				if (!response.ok) {
-					throw new Error(`Fusion AI error: ${response.status}`);
+					const errorText = await response.text();
+					throw new Error(`Fusion AI error: ${response.status} - ${errorText}`);
 				}
 				
 				const data = await response.json() as any;
-				return data.response?.text || data.text || '';
+				const responseText = data.response?.text || data.text || '';
+
+				// If tools were provided, try to parse tool calls from the response
+				if (hasTools) {
+					try {
+						// Check if the response contains a tool call
+						const jsonMatch = responseText.match(/\{[^}]*"tool_name"[^}]*\}/);
+						if (jsonMatch) {
+							const toolCall = JSON.parse(jsonMatch[0]);
+							
+							// Return in LangChain format with tool calls
+							return {
+								content: responseText,
+								tool_calls: [{
+									id: `call_${Date.now()}`,
+									type: 'function',
+									function: {
+										name: toolCall.tool_name,
+										arguments: JSON.stringify(toolCall.arguments || {})
+									}
+								}]
+							};
+						}
+					} catch (e) {
+						// If parsing fails, just return the text response
+						console.warn('Failed to parse tool call from response:', e);
+					}
+				}
+
+				// Return standard text response
+				return {
+					content: responseText,
+					tool_calls: []
+				};
 			},
+
+			// Bind tools method required by n8n
+			bindTools(tools: any[]) {
+				return {
+					...this,
+					_boundTools: tools,
+					async invoke(messages: any[], options?: any) {
+						return languageModel.invoke(messages, { ...options, tools });
+					}
+				};
+			},
+
+			// Indicate that this model supports tool calling
+			supportsToolCalling: true,
 		};
 
 		return {
