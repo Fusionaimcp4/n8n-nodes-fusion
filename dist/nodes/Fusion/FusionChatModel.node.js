@@ -202,11 +202,22 @@ class FusionChatModel {
             async call(messages) {
                 console.log('📞 call method - delegating to invoke');
                 const result = await this.invoke(messages);
-                // For call method, extract content from single ChatGeneration
+                // Extract text from ChatResult format (invoke now returns ChatResult with generations array)
                 if (result && typeof result === 'object') {
-                    // If it's a single ChatGeneration object
+                    // If it's a ChatResult with generations array
+                    if (result.generations && Array.isArray(result.generations)) {
+                        const generations = result.generations;
+                        if (generations.length > 0) {
+                            const firstGeneration = generations[0];
+                            if (firstGeneration && firstGeneration.text) {
+                                console.log('📞 call method returning text from ChatResult generations:', firstGeneration.text);
+                                return firstGeneration.text;
+                            }
+                        }
+                    }
+                    // Fallback for single ChatGeneration object
                     if (result.text) {
-                        console.log('📞 call method returning text from ChatGeneration:', result.text);
+                        console.log('📞 call method returning text from single ChatGeneration:', result.text);
                         return result.text;
                     }
                     // If it's a message object with content
@@ -214,13 +225,14 @@ class FusionChatModel {
                         console.log('📞 call method returning content from message:', result.message.content);
                         return result.message.content;
                     }
-                    // Fallback for other formats
-                    if (result.content) {
-                        console.log('📞 call method returning content string:', result.content);
-                        return result.content;
-                    }
                 }
-                return result;
+                // Fallback - if result is a string, return it directly
+                if (typeof result === 'string') {
+                    console.log('📞 call method returning string result:', result);
+                    return result;
+                }
+                console.log('📞 call method falling back to empty string');
+                return '';
             },
             // Generate method that n8n might expect for ChatGeneration
             async generate(messages, options) {
@@ -357,21 +369,17 @@ ${prompt}`;
                     type: "constructor",
                     id: ["langchain_core", "messages", "AIMessage"]
                 };
-                // For n8n AI Agent ToolCallingAgentOutputParser, return an ARRAY of ChatGeneration objects
-                const responseObject = [{
-                        text: responseText,
-                        message: aiMessage,
-                        generationInfo: {
-                            model: data.model,
-                            provider: data.provider,
-                            tokens: data.tokens,
-                            cost: data.cost_charged_to_credits
-                        },
-                        // Add LangChain ChatGeneration identifiers
-                        lc: 1,
-                        type: 'constructor',
-                        id: ['langchain_core', 'outputs', 'ChatGeneration']
-                    }];
+                // Create a proper ChatGeneration object that matches LangChain's exact structure
+                const chatGeneration = {
+                    text: responseText,
+                    message: aiMessage,
+                    generationInfo: {
+                        model: data.model,
+                        provider: data.provider,
+                        tokens: data.tokens,
+                        cost: data.cost_charged_to_credits
+                    }
+                };
                 // If tools were provided, try to parse tool calls from the response
                 if (hasTools) {
                     try {
@@ -379,7 +387,7 @@ ${prompt}`;
                         const jsonMatch = responseText.match(/\{[^}]*"tool_name"[^}]*\}/);
                         if (jsonMatch) {
                             const toolCall = JSON.parse(jsonMatch[0]);
-                            // Add tool calls to the AIMessage in the generation
+                            // Add tool calls to the AIMessage
                             aiMessage.additional_kwargs = {
                                 tool_calls: [{
                                         id: `call_${Date.now()}`,
@@ -391,7 +399,7 @@ ${prompt}`;
                                     }]
                             };
                             // Update the generation with the modified message
-                            responseObject[0].message = aiMessage;
+                            chatGeneration.message = aiMessage;
                             console.log('🔧 Tool call detected and added to ChatGeneration response');
                         }
                     }
@@ -400,28 +408,19 @@ ${prompt}`;
                         console.warn('Failed to parse tool call from response:', e);
                     }
                 }
-                console.log('📤 Final ChatGeneration ARRAY:', JSON.stringify(responseObject, null, 2));
-                // Try returning just the first generation directly
-                // Based on n8n error handling docs, the issue might be type checking
-                const generation = responseObject[0];
-                console.log('📋 Returning single ChatGeneration:', JSON.stringify(generation, null, 2));
-                // Return the generation with proper error handling context
-                try {
-                    return generation;
-                }
-                catch (error) {
-                    console.error('❌ Error returning generation:', error);
-                    // Fallback to simple text response
-                    return {
-                        text: responseText,
-                        message: {
-                            content: responseText,
-                            lc: 1,
-                            type: 'constructor',
-                            id: ['langchain_core', 'messages', 'AIMessage']
-                        }
-                    };
-                }
+                console.log('📤 Final ChatGeneration object:', JSON.stringify(chatGeneration, null, 2));
+                // Return a ChatResult object with generations array - this is what n8n's ToolCallingAgentOutputParser expects
+                const chatResult = {
+                    generations: [chatGeneration],
+                    llmOutput: {
+                        model: data.model,
+                        provider: data.provider,
+                        tokens: data.tokens,
+                        cost: data.cost_charged_to_credits
+                    }
+                };
+                console.log('📋 Returning ChatResult with generations array:', JSON.stringify(chatResult, null, 2));
+                return chatResult;
             },
             // Bind tools method required by n8n
             bindTools(tools) {
