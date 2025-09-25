@@ -14,7 +14,7 @@ export class FusionChatModel implements INodeType {
 		displayName: 'Fusion Chat Model',
 		name: 'fusionChatModel',
 		icon: 'file:fusion.svg',
-		group: ['ai'],
+		group: ['transform'],
 		version: 1,
 		subtitle: 'Language Model',
 		description: 'Chat Model for Fusion AI',
