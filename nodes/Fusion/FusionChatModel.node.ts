@@ -152,6 +152,11 @@ export class FusionChatModel implements INodeType {
 
 		// Enhanced language model with tools calling support for n8n AI Agent
 		const languageModel = {
+			// Required properties for n8n Tools Agent compatibility
+			_llmType: 'chat' as const,
+			modelName: model || 'fusion-neuroswitch',
+			supportsToolCalling: true,
+
 			// Standard text generation call
 			async call(messages: any[]) {
 				return this.invoke(messages);
@@ -272,17 +277,21 @@ ${prompt}`;
 
 			// Bind tools method required by n8n
 			bindTools(tools: any[]) {
-				return {
+				// Create a new instance with bound tools
+				const boundModel = {
 					...this,
 					_boundTools: tools,
+					// Override invoke to always include the bound tools
 					async invoke(messages: any[], options?: any) {
 						return languageModel.invoke(messages, { ...options, tools });
+					},
+					// Keep the same call method
+					async call(messages: any[]) {
+						return this.invoke(messages);
 					}
 				};
+				return boundModel;
 			},
-
-			// Indicate that this model supports tool calling
-			supportsToolCalling: true,
 		};
 
 		return {

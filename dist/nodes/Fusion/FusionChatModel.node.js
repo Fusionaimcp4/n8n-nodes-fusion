@@ -135,6 +135,10 @@ class FusionChatModel {
         const options = this.getNodeParameter('options', itemIndex);
         // Enhanced language model with tools calling support for n8n AI Agent
         const languageModel = {
+            // Required properties for n8n Tools Agent compatibility
+            _llmType: 'chat',
+            modelName: model || 'fusion-neuroswitch',
+            supportsToolCalling: true,
             // Standard text generation call
             async call(messages) {
                 return this.invoke(messages);
@@ -241,16 +245,21 @@ ${prompt}`;
             },
             // Bind tools method required by n8n
             bindTools(tools) {
-                return {
+                // Create a new instance with bound tools
+                const boundModel = {
                     ...this,
                     _boundTools: tools,
+                    // Override invoke to always include the bound tools
                     async invoke(messages, options) {
                         return languageModel.invoke(messages, { ...options, tools });
+                    },
+                    // Keep the same call method
+                    async call(messages) {
+                        return this.invoke(messages);
                     }
                 };
+                return boundModel;
             },
-            // Indicate that this model supports tool calling
-            supportsToolCalling: true,
         };
         return {
             response: languageModel,
