@@ -157,6 +157,10 @@ class FusionChatModel {
             },
             // LangChain Runnable interface implementation
             lc_runnable: true,
+            // Add LangChain class identifiers
+            lc: 1,
+            type: 'constructor',
+            id: ['langchain', 'chat_models', 'fusion'],
             // Required Runnable methods
             async batch(inputs, options) {
                 console.log('📦 batch method called with inputs type:', typeof inputs, 'length:', Array.isArray(inputs) ? inputs.length : 'not array');
@@ -214,6 +218,11 @@ class FusionChatModel {
                     }
                 }
                 return result;
+            },
+            // Generate method that n8n might expect for ChatGeneration
+            async generate(messages, options) {
+                console.log('🎲 generate method called - delegating to invoke');
+                return this.invoke(messages, options);
             },
             // Enhanced invoke method that handles both regular and tool-enabled calls
             async invoke(messages, options) {
@@ -354,7 +363,11 @@ ${prompt}`;
                             provider: data.provider,
                             tokens: data.tokens,
                             cost: data.cost_charged_to_credits
-                        }
+                        },
+                        // Add LangChain ChatGeneration identifiers
+                        lc: 1,
+                        type: 'constructor',
+                        id: ['langchain_core', 'outputs', 'ChatGeneration']
                     }];
                 // If tools were provided, try to parse tool calls from the response
                 if (hasTools) {
