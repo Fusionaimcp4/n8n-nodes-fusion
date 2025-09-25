@@ -320,8 +320,8 @@ ${prompt}`;
                 const data = await response.json();
                 console.log('✅ Fusion API response data:', JSON.stringify(data, null, 2));
                 const responseText = data.response?.text || data.text || '';
-                console.log('🎯 Creating response object with content:', responseText);
-                // For n8n AI Agent, we need to return a proper message object
+                console.log('🎯 Creating AIMessage response object with content:', responseText);
+                // For n8n AI Agent ToolCallingAgentOutputParser, return an AIMessage-style object
                 const responseObject = {
                     content: responseText,
                     additional_kwargs: {},
@@ -330,7 +330,11 @@ ${prompt}`;
                         provider: data.provider,
                         tokens: data.tokens,
                         cost: data.cost_charged_to_credits
-                    }
+                    },
+                    // Add LangChain message type identifiers
+                    lc: 1,
+                    type: "constructor",
+                    id: ["langchain_core", "messages", "AIMessage"]
                 };
                 // If tools were provided, try to parse tool calls from the response
                 if (hasTools) {
@@ -339,7 +343,7 @@ ${prompt}`;
                         const jsonMatch = responseText.match(/\{[^}]*"tool_name"[^}]*\}/);
                         if (jsonMatch) {
                             const toolCall = JSON.parse(jsonMatch[0]);
-                            // Add tool calls to the response
+                            // Add tool calls to the additional_kwargs
                             responseObject.additional_kwargs = {
                                 tool_calls: [{
                                         id: `call_${Date.now()}`,
@@ -350,7 +354,7 @@ ${prompt}`;
                                         }
                                     }]
                             };
-                            console.log('🔧 Tool call detected and added to response');
+                            console.log('🔧 Tool call detected and added to AIMessage response');
                         }
                     }
                     catch (e) {
@@ -358,7 +362,7 @@ ${prompt}`;
                         console.warn('Failed to parse tool call from response:', e);
                     }
                 }
-                console.log('📤 Final response object:', JSON.stringify(responseObject, null, 2));
+                console.log('📤 Final AIMessage response object:', JSON.stringify(responseObject, null, 2));
                 return responseObject;
             },
             // Bind tools method required by n8n
