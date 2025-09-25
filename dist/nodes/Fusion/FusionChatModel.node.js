@@ -197,7 +197,13 @@ class FusionChatModel {
             // Standard text generation call
             async call(messages) {
                 console.log('📞 call method - delegating to invoke');
-                return this.invoke(messages);
+                const result = await this.invoke(messages);
+                // For call method, return just the content string if that's what's expected
+                if (result && typeof result === 'object' && result.content) {
+                    console.log('📞 call method returning content string:', result.content);
+                    return result.content;
+                }
+                return result;
             },
             // Enhanced invoke method that handles both regular and tool-enabled calls
             async invoke(messages, options) {
@@ -314,6 +320,18 @@ ${prompt}`;
                 const data = await response.json();
                 console.log('✅ Fusion API response data:', JSON.stringify(data, null, 2));
                 const responseText = data.response?.text || data.text || '';
+                console.log('🎯 Creating response object with content:', responseText);
+                // For n8n AI Agent, we need to return a proper message object
+                const responseObject = {
+                    content: responseText,
+                    additional_kwargs: {},
+                    response_metadata: {
+                        model: data.model,
+                        provider: data.provider,
+                        tokens: data.tokens,
+                        cost: data.cost_charged_to_credits
+                    }
+                };
                 // If tools were provided, try to parse tool calls from the response
                 if (hasTools) {
                     try {
@@ -321,9 +339,8 @@ ${prompt}`;
                         const jsonMatch = responseText.match(/\{[^}]*"tool_name"[^}]*\}/);
                         if (jsonMatch) {
                             const toolCall = JSON.parse(jsonMatch[0]);
-                            // Return in LangChain format with tool calls
-                            return {
-                                content: responseText,
+                            // Add tool calls to the response
+                            responseObject.additional_kwargs = {
                                 tool_calls: [{
                                         id: `call_${Date.now()}`,
                                         type: 'function',
@@ -333,6 +350,7 @@ ${prompt}`;
                                         }
                                     }]
                             };
+                            console.log('🔧 Tool call detected and added to response');
                         }
                     }
                     catch (e) {
@@ -340,11 +358,8 @@ ${prompt}`;
                         console.warn('Failed to parse tool call from response:', e);
                     }
                 }
-                // Return standard text response
-                return {
-                    content: responseText,
-                    tool_calls: []
-                };
+                console.log('📤 Final response object:', JSON.stringify(responseObject, null, 2));
+                return responseObject;
             },
             // Bind tools method required by n8n
             bindTools(tools) {
