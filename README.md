@@ -317,32 +317,38 @@ Content-Type: application/json
 3. **Verify outputs**: Check that metadata shows `"outputs": ["ai_languageModel"]`
 4. **Check file structure**: Ensure all files in `dist/nodes/Fusion/` are present
 
-### Cannot Connect to AI Agent
+### Tools Agent Connection Issues
 
-**Current Limitation**: n8n's AI Agent may not recognize custom AI Language Model nodes due to internal implementation restrictions.
+**Current Status**: Tools Agent may not recognize custom AI Language Model nodes in all n8n versions.
 
-**Workaround Options**:
+**Troubleshooting Steps**:
 
-1. **Use Fusion AI Node (Direct)**: 
-   - Use the regular "Fusion AI" node instead
-   - Set Resource: "Chat", Operation: "Send Message"
-   - This provides direct API access with full control
+1. **Try Regular AI Agent First**: 
+   - Use "AI Agent" node (not "Tools Agent")
+   - Connect your Fusion Chat Model
+   - This should work with our supplyData() implementation
 
-2. **Custom Workflow**:
-   - Use HTTP Request node to call Fusion API directly
+2. **Use FusionChat Node (NEW)**:
+   - Try the new "Fusion Chat" node (OpenRouter-style)
+   - This bypasses AI Language Model restrictions
+   - Direct chat implementation that works universally
+
+3. **Check n8n Version**:
+   - Tools Agent support for custom nodes varies by version
+   - Some versions have stricter validation
+   - Consider updating n8n if using older version
+
+4. **Manual Workflow Approach**:
+   - Use HTTP Request node for direct API control
    - Format: `POST https://api.mcp4.ai/api/chat`
    - Headers: `Authorization: ApiKey your-key`
    - Body: `{"prompt": "your message", "provider": "neuroswitch"}`
 
-3. **Wait for n8n Update**: 
-   - Future n8n versions may support custom AI Language Model nodes
-   - Monitor n8n community updates
-
-**If Connection Works**:
-1. **Node type**: Ensure using "Fusion Chat Model" (not "Fusion AI")
-2. **Connection type**: Look for "Language Model" connection port on AI Agent  
-3. **Node restart**: Try deleting and re-adding the Fusion Chat Model node
-4. **Version check**: Ensure n8n version supports AI Language Model connections
+**If Connection Still Fails**:
+1. **Restart n8n completely** after installing the node
+2. **Clear browser cache** and refresh
+3. **Try different n8n version** if possible
+4. **Use FusionChat node** as proven alternative
 
 ### Authentication Errors
 

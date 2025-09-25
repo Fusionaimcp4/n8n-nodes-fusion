@@ -133,53 +133,54 @@ class FusionChatModel {
         const baseUrl = credentials.baseUrl?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
         const model = this.getNodeParameter('model', itemIndex);
         const options = this.getNodeParameter('options', itemIndex);
-        return {
-            response: {
-                provider: 'fusion',
-                kind: 'chat',
-                baseUrl: `${baseUrl}/api/chat`,
-                headers: {
-                    Authorization: `ApiKey ${credentials.apiKey}`,
-                    'Content-Type': 'application/json',
-                },
-                config: {
-                    model,
-                    temperature: options.temperature ?? 0.3,
-                    max_tokens: options.maxTokens ?? 1024,
-                    top_p: options.topP ?? 1,
-                    frequency_penalty: options.frequencyPenalty ?? 0,
-                    presence_penalty: options.presencePenalty ?? 0,
-                },
-                supportsTools: true,
-                supportsFunctions: true,
-                supportsJsonMode: true,
-                requestTransform: {
-                    body: (data) => {
-                        if (data.messages && Array.isArray(data.messages)) {
-                            // Transform messages[] array to single prompt string for Fusion API
-                            const prompt = data.messages.map((msg) => msg.content).join('\n');
-                            // Handle tools if present
-                            let body = {
-                                prompt,
-                                provider: data.model?.includes('/') ? data.model.split('/')[0] : 'neuroswitch',
-                                model: data.model || model,
-                                temperature: data.temperature ?? options.temperature ?? 0.3,
-                                max_tokens: data.max_tokens ?? options.maxTokens ?? 1024,
-                                top_p: data.top_p ?? options.topP ?? 1,
-                                frequency_penalty: data.frequency_penalty ?? options.frequencyPenalty ?? 0,
-                                presence_penalty: data.presence_penalty ?? options.presencePenalty ?? 0,
-                            };
-                            // Add tools to prompt if present
-                            if (data.tools && Array.isArray(data.tools)) {
-                                const toolsInfo = data.tools.map((tool) => `Available tool: ${tool.function?.name} - ${tool.function?.description}`).join('\n');
-                                body.prompt = `${toolsInfo}\n\nUser: ${prompt}`;
-                            }
-                            return body;
-                        }
-                        return data;
+        // Create a language model instance that mimics OpenAI/OpenRouter behavior
+        const languageModel = {
+            provider: 'fusion',
+            modelName: model,
+            temperature: options.temperature ?? 0.3,
+            maxTokens: options.maxTokens ?? 1024,
+            topP: options.topP ?? 1,
+            frequencyPenalty: options.frequencyPenalty ?? 0,
+            presencePenalty: options.presencePenalty ?? 0,
+            supportsTools: true,
+            supportsFunctions: true,
+            supportsJsonMode: true,
+            // Method that n8n calls for chat completions
+            async call(messages, options) {
+                const prompt = messages.map((msg) => msg.content).join('\n');
+                const response = await fetch(`${baseUrl}/api/chat`, {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `ApiKey ${credentials.apiKey}`,
+                        'Content-Type': 'application/json',
                     },
-                },
+                    body: JSON.stringify({
+                        prompt,
+                        provider: model.includes('/') ? model.split('/')[0] : 'neuroswitch',
+                        model,
+                        temperature: options?.temperature ?? this.temperature,
+                        max_tokens: options?.max_tokens ?? this.maxTokens,
+                        top_p: options?.top_p ?? this.topP,
+                        frequency_penalty: options?.frequency_penalty ?? this.frequencyPenalty,
+                        presence_penalty: options?.presence_penalty ?? this.presencePenalty,
+                    }),
+                });
+                if (!response.ok) {
+                    throw new Error(`Fusion AI API error: ${response.status} ${response.statusText}`);
+                }
+                const data = await response.json();
+                return {
+                    text: data.response?.text || data.text || '',
+                    response: data,
+                };
             },
+            // Tools-specific methods
+            async callWithTools(messages, tools, options) {
+                return this.call(messages, options);
+            },
+        };
+        return {
+            response: languageModel,
         };
     }
 }
