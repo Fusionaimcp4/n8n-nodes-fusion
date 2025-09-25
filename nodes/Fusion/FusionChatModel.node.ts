@@ -227,10 +227,18 @@ export class FusionChatModel implements INodeType {
 			async call(messages: any) {
 				console.log('📞 call method - delegating to invoke');
 				const result = await this.invoke(messages);
-				// For call method, return just the content string if that's what's expected
-				if (result && typeof result === 'object' && result.content) {
-					console.log('📞 call method returning content string:', result.content);
-					return result.content;
+				// For call method, extract content from ChatGeneration if needed
+				if (result && typeof result === 'object') {
+					// If it's a ChatGeneration object, extract the text content
+					if (result.generations && result.generations[0] && result.generations[0].text) {
+						console.log('📞 call method returning text from ChatGeneration:', result.generations[0].text);
+						return result.generations[0].text;
+					}
+					// If it has direct content (shouldn't happen now but safe fallback)
+					if ((result as any).content) {
+						console.log('📞 call method returning content string:', (result as any).content);
+						return (result as any).content;
+					}
 				}
 				return result;
 			},
@@ -361,10 +369,10 @@ ${prompt}`;
 				
 				const responseText = data.response?.text || data.text || '';
 
-				console.log('🎯 Creating AIMessage response object with content:', responseText);
+				console.log('🎯 Creating ChatGeneration response object with content:', responseText);
 
-				// For n8n AI Agent ToolCallingAgentOutputParser, return an AIMessage-style object
-				const responseObject = {
+				// Create the AIMessage object first
+				const aiMessage = {
 					content: responseText,
 					additional_kwargs: {},
 					response_metadata: {
@@ -373,10 +381,29 @@ ${prompt}`;
 						tokens: data.tokens,
 						cost: data.cost_charged_to_credits
 					},
-					// Add LangChain message type identifiers
 					lc: 1,
 					type: "constructor", 
 					id: ["langchain_core", "messages", "AIMessage"]
+				};
+
+				// For n8n AI Agent ToolCallingAgentOutputParser, return a ChatGeneration object
+				const responseObject = {
+					generations: [{
+						text: responseText,
+						message: aiMessage,
+						generationInfo: {
+							model: data.model,
+							provider: data.provider,
+							tokens: data.tokens,
+							cost: data.cost_charged_to_credits
+						}
+					}],
+					llmOutput: {
+						model: data.model,
+						provider: data.provider,
+						tokens: data.tokens,
+						cost: data.cost_charged_to_credits
+					}
 				};
 
 				// If tools were provided, try to parse tool calls from the response
@@ -387,8 +414,8 @@ ${prompt}`;
 						if (jsonMatch) {
 							const toolCall = JSON.parse(jsonMatch[0]);
 							
-							// Add tool calls to the additional_kwargs
-							responseObject.additional_kwargs = {
+							// Add tool calls to the AIMessage in the generation
+							aiMessage.additional_kwargs = {
 								tool_calls: [{
 									id: `call_${Date.now()}`,
 									type: 'function',
@@ -399,7 +426,10 @@ ${prompt}`;
 								}]
 							};
 							
-							console.log('🔧 Tool call detected and added to AIMessage response');
+							// Update the generation with the modified message
+							responseObject.generations[0].message = aiMessage;
+							
+							console.log('🔧 Tool call detected and added to ChatGeneration response');
 						}
 					} catch (e) {
 						// If parsing fails, just return the text response
@@ -407,7 +437,7 @@ ${prompt}`;
 					}
 				}
 
-				console.log('📤 Final AIMessage response object:', JSON.stringify(responseObject, null, 2));
+				console.log('📤 Final ChatGeneration response object:', JSON.stringify(responseObject, null, 2));
 				return responseObject;
 			},
 
