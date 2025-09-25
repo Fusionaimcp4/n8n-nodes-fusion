@@ -1,18 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Fusion = void 0;
-class Fusion {
+exports.FusionChat = void 0;
+class FusionChat {
     constructor() {
         this.description = {
-            displayName: 'Fusion AI',
-            name: 'fusion',
+            displayName: 'Fusion Chat',
+            name: 'fusionChat',
             icon: 'file:fusion.svg',
             group: ['transform'],
             version: 1,
-            subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-            description: 'Interact with Fusion AI (NeuroSwitch multi-provider orchestration)',
+            subtitle: 'AI Chat via Fusion',
+            description: 'Send messages to AI models via Fusion API',
             defaults: {
-                name: 'Fusion AI',
+                name: 'Fusion Chat',
             },
             inputs: ["main" /* NodeConnectionType.Main */],
             outputs: ["main" /* NodeConnectionType.Main */],
@@ -35,82 +35,9 @@ class Fusion {
                             action: 'Send chat message',
                             description: 'Send a message to AI model and get response',
                         },
-                        {
-                            name: 'List Models',
-                            value: 'listModels',
-                            action: 'List available models',
-                            description: 'Get list of available AI models',
-                        },
-                        {
-                            name: 'Get Account Info',
-                            value: 'getAccount',
-                            action: 'Get account information',
-                            description: 'Get account details and usage information',
-                        },
                     ],
                     default: 'chat',
                 },
-                {
-                    displayName: 'Operation',
-                    name: 'operation',
-                    type: 'options',
-                    noDataExpression: true,
-                    displayOptions: {
-                        show: {
-                            resource: ['chat'],
-                        },
-                    },
-                    options: [
-                        {
-                            name: 'Send Message',
-                            value: 'sendMessage',
-                            action: 'Send a message to AI model',
-                            description: 'Send a message to an AI model and get a response',
-                        },
-                    ],
-                    default: 'sendMessage',
-                },
-                {
-                    displayName: 'Operation',
-                    name: 'operation',
-                    type: 'options',
-                    noDataExpression: true,
-                    displayOptions: {
-                        show: {
-                            resource: ['models'],
-                        },
-                    },
-                    options: [
-                        {
-                            name: 'List Models',
-                            value: 'listModels',
-                            action: 'List available models',
-                            description: 'Get a list of available AI models',
-                        },
-                    ],
-                    default: 'listModels',
-                },
-                {
-                    displayName: 'Operation',
-                    name: 'operation',
-                    type: 'options',
-                    noDataExpression: true,
-                    displayOptions: {
-                        show: {
-                            resource: ['account'],
-                        },
-                    },
-                    options: [
-                        {
-                            name: 'Get Info',
-                            value: 'getInfo',
-                            action: 'Get account information',
-                            description: 'Get account information and usage',
-                        },
-                    ],
-                    default: 'getInfo',
-                },
-                // Chat parameters
                 {
                     displayName: 'Model',
                     name: 'model',
@@ -118,29 +45,8 @@ class Fusion {
                     typeOptions: {
                         loadOptionsMethod: 'getModels',
                     },
-                    displayOptions: {
-                        show: {
-                            resource: ['chat'],
-                            operation: ['sendMessage'],
-                        },
-                    },
                     default: 'neuroswitch',
                     description: 'The AI model to use for chat completion',
-                },
-                {
-                    displayName: 'Message',
-                    name: 'message',
-                    type: 'string',
-                    displayOptions: {
-                        show: {
-                            resource: ['chat'],
-                            operation: ['sendMessage'],
-                        },
-                    },
-                    default: '',
-                    placeholder: 'Enter your message here...',
-                    description: 'The message to send to the AI model',
-                    required: true,
                 },
                 {
                     displayName: 'System Prompt',
@@ -149,27 +55,24 @@ class Fusion {
                     typeOptions: {
                         rows: 3,
                     },
-                    displayOptions: {
-                        show: {
-                            resource: ['chat'],
-                            operation: ['sendMessage'],
-                        },
-                    },
                     default: '',
                     placeholder: 'You are a helpful assistant...',
                     description: 'System prompt to set the behavior of the AI (optional)',
+                },
+                {
+                    displayName: 'Message',
+                    name: 'message',
+                    type: 'string',
+                    default: '',
+                    placeholder: 'Enter your message here...',
+                    description: 'The message to send to the AI model',
+                    required: true,
                 },
                 {
                     displayName: 'Additional Fields',
                     name: 'additionalFields',
                     type: 'collection',
                     placeholder: 'Add Field',
-                    displayOptions: {
-                        show: {
-                            resource: ['chat'],
-                            operation: ['sendMessage'],
-                        },
-                    },
                     default: {},
                     options: [
                         {
@@ -251,7 +154,7 @@ class Fusion {
                         });
                         const models = (response.data || response || []);
                         return models.map((model) => ({
-                            name: `${model.name || model.id_string} - $${model.input_cost_per_million_tokens || 'N/A'}/1M input`,
+                            name: `${model.name || model.id_string} ($${model.input_cost_per_million_tokens || 'N/A'}/1M)`,
                             value: model.id_string || model.id,
                         }));
                     }
@@ -275,61 +178,36 @@ class Fusion {
             try {
                 const credentials = await this.getCredentials('fusionApi');
                 const baseUrl = credentials.baseUrl?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
-                const resource = this.getNodeParameter('resource', i);
-                const operation = this.getNodeParameter('operation', i);
-                let responseData;
-                if (resource === 'chat' && operation === 'sendMessage') {
-                    const model = this.getNodeParameter('model', i);
-                    const message = this.getNodeParameter('message', i);
-                    const systemPrompt = this.getNodeParameter('systemPrompt', i, '');
-                    const additionalFields = this.getNodeParameter('additionalFields', i, {});
-                    // Build the prompt
-                    let prompt = message;
-                    if (systemPrompt) {
-                        prompt = `${systemPrompt}\n\nUser: ${message}`;
-                    }
-                    const requestBody = {
-                        prompt,
-                        provider: model.includes('/') ? model.split('/')[0] : 'neuroswitch',
-                        model: model,
-                        temperature: additionalFields.temperature || 0.3,
-                        max_tokens: additionalFields.maxTokens || 1024,
-                        top_p: additionalFields.topP || 1,
-                        frequency_penalty: additionalFields.frequencyPenalty || 0,
-                        presence_penalty: additionalFields.presencePenalty || 0,
-                    };
-                    responseData = await this.helpers.httpRequest({
-                        method: 'POST',
-                        url: `${baseUrl}/api/chat`,
-                        headers: {
-                            Authorization: `ApiKey ${credentials.apiKey}`,
-                            'Content-Type': 'application/json',
-                        },
-                        body: requestBody,
-                    });
+                const model = this.getNodeParameter('model', i);
+                const message = this.getNodeParameter('message', i);
+                const systemPrompt = this.getNodeParameter('systemPrompt', i, '');
+                const additionalFields = this.getNodeParameter('additionalFields', i, {});
+                // Build the prompt
+                let prompt = message;
+                if (systemPrompt) {
+                    prompt = `${systemPrompt}\n\nUser: ${message}`;
                 }
-                else if (resource === 'models' && operation === 'listModels') {
-                    responseData = await this.helpers.httpRequest({
-                        method: 'GET',
-                        url: `${baseUrl}/api/models`,
-                        headers: {
-                            Authorization: `ApiKey ${credentials.apiKey}`,
-                            'Content-Type': 'application/json',
-                        },
-                    });
-                }
-                else if (resource === 'account' && operation === 'getInfo') {
-                    responseData = await this.helpers.httpRequest({
-                        method: 'GET',
-                        url: `${baseUrl}/api/account`,
-                        headers: {
-                            Authorization: `ApiKey ${credentials.apiKey}`,
-                            'Content-Type': 'application/json',
-                        },
-                    });
-                }
+                const requestBody = {
+                    prompt,
+                    provider: model.includes('/') ? model.split('/')[0] : 'neuroswitch',
+                    model: model,
+                    temperature: additionalFields.temperature || 0.3,
+                    max_tokens: additionalFields.maxTokens || 1024,
+                    top_p: additionalFields.topP || 1,
+                    frequency_penalty: additionalFields.frequencyPenalty || 0,
+                    presence_penalty: additionalFields.presencePenalty || 0,
+                };
+                const response = await this.helpers.httpRequest({
+                    method: 'POST',
+                    url: `${baseUrl}/api/chat`,
+                    headers: {
+                        Authorization: `ApiKey ${credentials.apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: requestBody,
+                });
                 returnData.push({
-                    json: responseData,
+                    json: response,
                     pairedItem: { item: i },
                 });
             }
@@ -352,5 +230,5 @@ class Fusion {
         return [returnData];
     }
 }
-exports.Fusion = Fusion;
-//# sourceMappingURL=Fusion.node.js.map
+exports.FusionChat = FusionChat;
+//# sourceMappingURL=FusionChat.node.js.map

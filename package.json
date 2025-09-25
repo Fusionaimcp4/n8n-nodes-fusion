@@ -32,7 +32,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "postbuild": "copy nodes\\Fusion\\fusion.svg dist\\nodes\\Fusion\\fusion.svg && copy nodes\\Fusion\\Fusion.node.json dist\\nodes\\Fusion\\Fusion.node.json && copy nodes\\Fusion\\FusionChatModel.node.json dist\\nodes\\Fusion\\FusionChatModel.node.json",
+    "postbuild": "copy nodes\\Fusion\\fusion.svg dist\\nodes\\Fusion\\fusion.svg && copy nodes\\Fusion\\Fusion.node.json dist\\nodes\\Fusion\\Fusion.node.json && copy nodes\\Fusion\\FusionChatModel.node.json dist\\nodes\\Fusion\\FusionChatModel.node.json && copy nodes\\Fusion\\FusionChat.node.json dist\\nodes\\Fusion\\FusionChat.node.json",
     "dev": "tsc --watch",
     "format": "prettier nodes credentials --write",
     "lint": "eslint nodes/**/*.ts credentials/**/*.ts package.json",
@@ -50,7 +50,8 @@
     ],
     "nodes": [
       "dist/nodes/Fusion/FusionChatModel.node.js",
-      "dist/nodes/Fusion/Fusion.node.js"
+      "dist/nodes/Fusion/Fusion.node.js",
+      "dist/nodes/Fusion/FusionChat.node.js"
     ]
   },
   "devDependencies": {
