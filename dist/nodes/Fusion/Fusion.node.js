@@ -9,13 +9,13 @@ class Fusion {
             icon: 'file:fusion.svg',
             group: ['transform'],
             version: 1,
-            subtitle: '={{$parameter["resource"] + ": " + $parameter["operation"]}}',
+            subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
             description: 'Interact with Fusion AI (NeuroSwitch multi-provider orchestration)',
             defaults: {
                 name: 'Fusion AI',
             },
-            inputs: ["main" /* NodeConnectionType.Main */],
-            outputs: ["main" /* NodeConnectionType.Main */],
+            inputs: ['main'],
+            outputs: ['main'],
             credentials: [
                 {
                     name: 'fusionApi',
@@ -32,12 +32,12 @@ class Fusion {
                         {
                             name: 'Chat',
                             value: 'chat',
-                            description: 'AI Chat operations',
+                            description: 'Chat with AI models',
                         },
                         {
                             name: 'Models',
                             value: 'models',
-                            description: 'AI Models operations',
+                            description: 'Manage AI models',
                         },
                         {
                             name: 'Account',
@@ -60,12 +60,12 @@ class Fusion {
                     options: [
                         {
                             name: 'Send Message',
-                            value: 'chat',
+                            value: 'sendMessage',
                             action: 'Send a message to AI model',
                             description: 'Send a message to an AI model and get a response',
                         },
                     ],
-                    default: 'chat',
+                    default: 'sendMessage',
                 },
                 {
                     displayName: 'Operation',
@@ -100,12 +100,12 @@ class Fusion {
                     options: [
                         {
                             name: 'Get Info',
-                            value: 'getAccount',
+                            value: 'getInfo',
                             action: 'Get account information',
                             description: 'Get account information and usage',
                         },
                     ],
-                    default: 'getAccount',
+                    default: 'getInfo',
                 },
                 // Chat parameters
                 {
@@ -275,7 +275,7 @@ class Fusion {
                 const resource = this.getNodeParameter('resource', i);
                 const operation = this.getNodeParameter('operation', i);
                 let responseData;
-                if (resource === 'chat' && operation === 'chat') {
+                if (resource === 'chat' && operation === 'sendMessage') {
                     const model = this.getNodeParameter('model', i);
                     const message = this.getNodeParameter('message', i);
                     const systemPrompt = this.getNodeParameter('systemPrompt', i, '');
@@ -315,7 +315,7 @@ class Fusion {
                         },
                     });
                 }
-                else if (resource === 'account' && operation === 'getAccount') {
+                else if (resource === 'account' && operation === 'getInfo') {
                     responseData = await this.helpers.httpRequest({
                         method: 'GET',
                         url: `${baseUrl}/api/account`,

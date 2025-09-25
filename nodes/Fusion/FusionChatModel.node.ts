@@ -124,7 +124,7 @@ export class FusionChatModel implements INodeType {
 		defaults: { name: 'Fusion Chat Model' },
 		inputs: [],
 		// Expose proper AI language model output so AI Agent connects
-		outputs: ['AiLanguageModel'],
+		outputs: ['ai_languageModel'],
 		credentials: [{ name: 'fusionApi', required: true }],
 		codex: {
 			categories: ['AI', 'Language Models'],

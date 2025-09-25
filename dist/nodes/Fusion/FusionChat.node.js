@@ -14,8 +14,8 @@ class FusionChat {
             defaults: {
                 name: 'Fusion Chat',
             },
-            inputs: ["main" /* NodeConnectionType.Main */],
-            outputs: ["main" /* NodeConnectionType.Main */],
+            inputs: ['Main'],
+            outputs: ['Main'],
             credentials: [
                 {
                     name: 'fusionApi',

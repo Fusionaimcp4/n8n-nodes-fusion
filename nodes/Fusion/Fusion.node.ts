@@ -29,28 +29,25 @@ export class Fusion implements INodeType {
 		],
 		properties: [
 			{
-				displayName: 'Operation',
-				name: 'operation',
+				displayName: 'Resource',
+				name: 'resource',
 				type: 'options',
 				noDataExpression: true,
 				options: [
 					{
 						name: 'Chat',
 						value: 'chat',
-						action: 'Send chat message',
-						description: 'Send a message to AI model and get response',
+						description: 'Chat with AI models',
 					},
 					{
-						name: 'List Models',
-						value: 'listModels',
-						action: 'List available models',
-						description: 'Get list of available AI models',
+						name: 'Models',
+						value: 'models',
+						description: 'Manage AI models',
 					},
 					{
-						name: 'Get Account Info',
-						value: 'getAccount',
-						action: 'Get account information',
-						description: 'Get account details and usage information',
+						name: 'Account',
+						value: 'account',
+						description: 'Account operations',
 					},
 				],
 				default: 'chat',
