@@ -150,21 +150,10 @@ export class FusionChatModel implements INodeType {
 			presencePenalty?: number;
 		};
 
-		// Create a language model instance that mimics OpenAI/OpenRouter behavior
+		// Simple language model for n8n AI Agent (OpenRouter-style)
 		const languageModel = {
-			provider: 'fusion',
-			modelName: model,
-			temperature: options.temperature ?? 0.3,
-			maxTokens: options.maxTokens ?? 1024,
-			topP: options.topP ?? 1,
-			frequencyPenalty: options.frequencyPenalty ?? 0,
-			presencePenalty: options.presencePenalty ?? 0,
-			supportsTools: true,
-			supportsFunctions: true,
-			supportsJsonMode: true,
-			
-			// Method that n8n calls for chat completions
-			async call(messages: any[], options?: any) {
+			async call(messages: any[]) {
+				// Convert messages to simple prompt for NeuroSwitch
 				const prompt = messages.map((msg: any) => msg.content).join('\n');
 				
 				const response = await fetch(`${baseUrl}/api/chat`, {
@@ -175,30 +164,19 @@ export class FusionChatModel implements INodeType {
 					},
 					body: JSON.stringify({
 						prompt,
-						provider: model.includes('/') ? model.split('/')[0] : 'neuroswitch',
-						model,
-						temperature: options?.temperature ?? this.temperature,
-						max_tokens: options?.max_tokens ?? this.maxTokens,
-						top_p: options?.top_p ?? this.topP,
-						frequency_penalty: options?.frequency_penalty ?? this.frequencyPenalty,
-						presence_penalty: options?.presence_penalty ?? this.presencePenalty,
+						provider: 'neuroswitch', // Always use NeuroSwitch for best provider selection
+						model: model || 'gpt-4o-mini',
+						temperature: options.temperature ?? 0.3,
+						max_tokens: options.maxTokens ?? 1024,
 					}),
 				});
 				
 				if (!response.ok) {
-					throw new Error(`Fusion AI API error: ${response.status} ${response.statusText}`);
+					throw new Error(`Fusion AI error: ${response.status}`);
 				}
 				
 				const data = await response.json() as any;
-				return {
-					text: data.response?.text || data.text || '',
-					response: data,
-				};
-			},
-			
-			// Tools-specific methods
-			async callWithTools(messages: any[], tools: any[], options?: any) {
-				return this.call(messages, options);
+				return data.response?.text || data.text || '';
 			},
 		};
 

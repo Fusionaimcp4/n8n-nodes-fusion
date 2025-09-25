@@ -133,20 +133,10 @@ class FusionChatModel {
         const baseUrl = credentials.baseUrl?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
         const model = this.getNodeParameter('model', itemIndex);
         const options = this.getNodeParameter('options', itemIndex);
-        // Create a language model instance that mimics OpenAI/OpenRouter behavior
+        // Simple language model for n8n AI Agent (OpenRouter-style)
         const languageModel = {
-            provider: 'fusion',
-            modelName: model,
-            temperature: options.temperature ?? 0.3,
-            maxTokens: options.maxTokens ?? 1024,
-            topP: options.topP ?? 1,
-            frequencyPenalty: options.frequencyPenalty ?? 0,
-            presencePenalty: options.presencePenalty ?? 0,
-            supportsTools: true,
-            supportsFunctions: true,
-            supportsJsonMode: true,
-            // Method that n8n calls for chat completions
-            async call(messages, options) {
+            async call(messages) {
+                // Convert messages to simple prompt for NeuroSwitch
                 const prompt = messages.map((msg) => msg.content).join('\n');
                 const response = await fetch(`${baseUrl}/api/chat`, {
                     method: 'POST',
@@ -156,27 +146,17 @@ class FusionChatModel {
                     },
                     body: JSON.stringify({
                         prompt,
-                        provider: model.includes('/') ? model.split('/')[0] : 'neuroswitch',
-                        model,
-                        temperature: options?.temperature ?? this.temperature,
-                        max_tokens: options?.max_tokens ?? this.maxTokens,
-                        top_p: options?.top_p ?? this.topP,
-                        frequency_penalty: options?.frequency_penalty ?? this.frequencyPenalty,
-                        presence_penalty: options?.presence_penalty ?? this.presencePenalty,
+                        provider: 'neuroswitch', // Always use NeuroSwitch for best provider selection
+                        model: model || 'gpt-4o-mini',
+                        temperature: options.temperature ?? 0.3,
+                        max_tokens: options.maxTokens ?? 1024,
                     }),
                 });
                 if (!response.ok) {
-                    throw new Error(`Fusion AI API error: ${response.status} ${response.statusText}`);
+                    throw new Error(`Fusion AI error: ${response.status}`);
                 }
                 const data = await response.json();
-                return {
-                    text: data.response?.text || data.text || '',
-                    response: data,
-                };
-            },
-            // Tools-specific methods
-            async callWithTools(messages, tools, options) {
-                return this.call(messages, options);
+                return data.response?.text || data.text || '';
             },
         };
         return {
