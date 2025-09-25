@@ -150,6 +150,7 @@ class FusionChatModel {
                     frequency_penalty: options.frequencyPenalty ?? 0,
                     presence_penalty: options.presencePenalty ?? 0,
                 },
+                supportsTools: true,
                 requestTransform: {
                     body: (data) => {
                         if (data.messages && Array.isArray(data.messages)) {
