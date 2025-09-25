@@ -273,6 +273,8 @@ export class FusionChatModel implements INodeType {
 				});
 
 				// For Fusion API, we'll convert to prompt format
+				console.log('📝 Formatted messages before prompt conversion:', JSON.stringify(formattedMessages, null, 2));
+				
 				let prompt = '';
 				const systemMessages = formattedMessages.filter(m => m.role === 'system');
 				const userMessages = formattedMessages.filter(m => m.role !== 'system');
@@ -281,6 +283,8 @@ export class FusionChatModel implements INodeType {
 					prompt += systemMessages.map(m => m.content).join('\n') + '\n\n';
 				}
 				prompt += userMessages.map(m => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`).join('\n');
+				
+				console.log('📄 Final prompt being sent:', JSON.stringify(prompt));
 
 				// If tools are provided, add them to the system prompt
 				if (hasTools) {
@@ -306,16 +310,15 @@ ${toolDescriptions}
 ${prompt}`;
 				}
 
+				// Let's try the EXACT same format as your working curl first
 				const requestBody: any = {
 					prompt,
-					provider: 'neuroswitch', // Use NeuroSwitch for best model selection
-					model: model || 'gpt-4o-mini',
-					temperature: options?.temperature ?? options.temperature ?? 0.3,
-					max_tokens: options?.maxTokens ?? options.maxTokens ?? 1024,
-					top_p: options?.topP ?? options.topP ?? 1,
-					frequency_penalty: options?.frequencyPenalty ?? options.frequencyPenalty ?? 0,
-					presence_penalty: options?.presencePenalty ?? options.presencePenalty ?? 0,
+					provider: 'neuroswitch'
 				};
+				
+				console.log('🚀 Fusion API request (minimal like curl):', JSON.stringify(requestBody, null, 2));
+				console.log('🔗 API URL:', `${baseUrl}/api/chat`);
+				console.log('🔑 Authorization header:', `ApiKey ${String(credentials.apiKey).substring(0, 20)}...`);
 
 				const response = await fetch(`${baseUrl}/api/chat`, {
 					method: 'POST',
@@ -326,12 +329,19 @@ ${prompt}`;
 					body: JSON.stringify(requestBody),
 				});
 				
+				console.log('📡 Fusion API response status:', response.status, response.statusText);
+				console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
+				
 				if (!response.ok) {
 					const errorText = await response.text();
+					console.error('❌ Fusion API error response:', errorText);
+					console.error('❌ Request that failed:', JSON.stringify(requestBody, null, 2));
 					throw new Error(`Fusion AI error: ${response.status} - ${errorText}`);
 				}
 				
 				const data = await response.json() as any;
+				console.log('✅ Fusion API response data:', JSON.stringify(data, null, 2));
+				
 				const responseText = data.response?.text || data.text || '';
 
 				// If tools were provided, try to parse tool calls from the response
