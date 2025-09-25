@@ -7,7 +7,7 @@ class FusionChatModel {
             displayName: 'Fusion Chat Model',
             name: 'fusionChatModel',
             icon: 'file:fusion.svg',
-            group: ['transform'],
+            group: ['ai'],
             version: 1,
             subtitle: 'Language Model',
             description: 'Chat Model for Fusion AI',
