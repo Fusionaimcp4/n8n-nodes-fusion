@@ -19,8 +19,8 @@ export class Fusion implements INodeType {
 		defaults: {
 			name: 'Fusion AI',
 		},
-		inputs: [NodeConnectionType.Main],
-		outputs: [NodeConnectionType.Main],
+		inputs: ['Main'],
+		outputs: ['Main'],
 		credentials: [
 			{
 				name: 'fusionApi',
