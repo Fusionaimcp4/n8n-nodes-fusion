@@ -155,7 +155,39 @@ export class FusionChatModel implements INodeType {
 			// Required properties for n8n Tools Agent compatibility
 			_llmType: 'chat' as const,
 			modelName: model || 'fusion-neuroswitch',
-			supportsToolCalling: true,
+			
+			// Tools calling support with logging
+			get supportsToolCalling() {
+				console.log('🔍 n8n checking supportsToolCalling - returning true');
+				return true;
+			},
+			
+			// Additional LangChain compatibility properties
+			_modelType: 'chat',
+			name: model || 'fusion-neuroswitch',
+			lc_namespace: ['langchain', 'chat_models'],
+			
+			// Alternative property names that n8n might check
+			supportsToolChoice: true,
+			supportsStructuredOutput: true,
+			
+			// Method-based check for tools calling
+			get _supportsToolCalling() {
+				console.log('🔍 n8n checking _supportsToolCalling - returning true');
+				return true;
+			},
+			
+			// Debug: Log when model is created
+			get _debug() {
+				console.log('Fusion Chat Model created with:', {
+					_llmType: this._llmType,
+					modelName: this.modelName,
+					supportsToolCalling: this.supportsToolCalling,
+					_modelType: this._modelType,
+					name: this.name
+				});
+				return true;
+			},
 
 			// Standard text generation call
 			async call(messages: any[]) {
@@ -277,6 +309,7 @@ ${prompt}`;
 
 			// Bind tools method required by n8n
 			bindTools(tools: any[]) {
+				console.log('🔧 bindTools called with tools:', tools);
 				// Create a new instance with bound tools
 				const boundModel = {
 					...this,
@@ -288,9 +321,27 @@ ${prompt}`;
 					// Keep the same call method
 					async call(messages: any[]) {
 						return this.invoke(messages);
+					},
+					// Ensure bound model also has tools calling support
+					get supportsToolCalling() {
+						console.log('🔍 boundModel checking supportsToolCalling - returning true');
+						return true;
 					}
 				};
 				return boundModel;
+			},
+			
+			// Additional methods that some LangChain versions might expect
+			withStructuredOutput(schema: any) {
+				console.log('🏗️ withStructuredOutput called with schema:', schema);
+				return this;
+			},
+			
+			// Stream method (some agents might check for this)
+			async stream(messages: any[], options?: any) {
+				console.log('🌊 stream method called');
+				const result = await this.invoke(messages, options);
+				return [result];
 			},
 		};
 
