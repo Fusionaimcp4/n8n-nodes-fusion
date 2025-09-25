@@ -151,12 +151,15 @@ class FusionChatModel {
                     presence_penalty: options.presencePenalty ?? 0,
                 },
                 supportsTools: true,
+                supportsFunctions: true,
+                supportsJsonMode: true,
                 requestTransform: {
                     body: (data) => {
                         if (data.messages && Array.isArray(data.messages)) {
                             // Transform messages[] array to single prompt string for Fusion API
                             const prompt = data.messages.map((msg) => msg.content).join('\n');
-                            return {
+                            // Handle tools if present
+                            let body = {
                                 prompt,
                                 provider: data.model?.includes('/') ? data.model.split('/')[0] : 'neuroswitch',
                                 model: data.model || model,
@@ -166,6 +169,12 @@ class FusionChatModel {
                                 frequency_penalty: data.frequency_penalty ?? options.frequencyPenalty ?? 0,
                                 presence_penalty: data.presence_penalty ?? options.presencePenalty ?? 0,
                             };
+                            // Add tools to prompt if present
+                            if (data.tools && Array.isArray(data.tools)) {
+                                const toolsInfo = data.tools.map((tool) => `Available tool: ${tool.function?.name} - ${tool.function?.description}`).join('\n');
+                                body.prompt = `${toolsInfo}\n\nUser: ${prompt}`;
+                            }
+                            return body;
                         }
                         return data;
                     },
