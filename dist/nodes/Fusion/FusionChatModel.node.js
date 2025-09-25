@@ -198,14 +198,16 @@ class FusionChatModel {
             async call(messages) {
                 console.log('📞 call method - delegating to invoke');
                 const result = await this.invoke(messages);
-                // For call method, extract content from ChatGeneration if needed
-                if (result && typeof result === 'object') {
-                    // If it's a ChatGeneration object, extract the text content
-                    if (result.generations && result.generations[0] && result.generations[0].text) {
-                        console.log('📞 call method returning text from ChatGeneration:', result.generations[0].text);
-                        return result.generations[0].text;
+                // For call method, extract content from ChatGeneration array
+                if (result && Array.isArray(result)) {
+                    // If it's an array of ChatGeneration objects, extract the text from the first one
+                    if (result[0] && result[0].text) {
+                        console.log('📞 call method returning text from ChatGeneration array:', result[0].text);
+                        return result[0].text;
                     }
-                    // If it has direct content (shouldn't happen now but safe fallback)
+                }
+                else if (result && typeof result === 'object') {
+                    // Fallback for other formats
                     if (result.content) {
                         console.log('📞 call method returning content string:', result.content);
                         return result.content;
@@ -343,25 +345,17 @@ ${prompt}`;
                     type: "constructor",
                     id: ["langchain_core", "messages", "AIMessage"]
                 };
-                // For n8n AI Agent ToolCallingAgentOutputParser, return a ChatGeneration object
-                const responseObject = {
-                    generations: [{
-                            text: responseText,
-                            message: aiMessage,
-                            generationInfo: {
-                                model: data.model,
-                                provider: data.provider,
-                                tokens: data.tokens,
-                                cost: data.cost_charged_to_credits
-                            }
-                        }],
-                    llmOutput: {
-                        model: data.model,
-                        provider: data.provider,
-                        tokens: data.tokens,
-                        cost: data.cost_charged_to_credits
-                    }
-                };
+                // For n8n AI Agent ToolCallingAgentOutputParser, return an ARRAY of ChatGeneration objects
+                const responseObject = [{
+                        text: responseText,
+                        message: aiMessage,
+                        generationInfo: {
+                            model: data.model,
+                            provider: data.provider,
+                            tokens: data.tokens,
+                            cost: data.cost_charged_to_credits
+                        }
+                    }];
                 // If tools were provided, try to parse tool calls from the response
                 if (hasTools) {
                     try {
@@ -381,7 +375,7 @@ ${prompt}`;
                                     }]
                             };
                             // Update the generation with the modified message
-                            responseObject.generations[0].message = aiMessage;
+                            responseObject[0].message = aiMessage;
                             console.log('🔧 Tool call detected and added to ChatGeneration response');
                         }
                     }
@@ -390,7 +384,7 @@ ${prompt}`;
                         console.warn('Failed to parse tool call from response:', e);
                     }
                 }
-                console.log('📤 Final ChatGeneration response object:', JSON.stringify(responseObject, null, 2));
+                console.log('📤 Final ChatGeneration ARRAY:', JSON.stringify(responseObject, null, 2));
                 return responseObject;
             },
             // Bind tools method required by n8n
