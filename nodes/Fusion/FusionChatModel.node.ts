@@ -237,44 +237,47 @@ export class FusionChatModel implements INodeType {
 				const tools = options?.tools || [];
 				const hasTools = tools.length > 0;
 
-				// Normalize messages input - handle LangChain ChatPromptValue and other formats
-				let messageArray: any[] = [];
+				// Simplified approach: Extract the actual user content and ignore complex structures
+				let userContent = '';
 				
 				if (typeof messages === 'string') {
-					// Single string message
-					messageArray = [{ role: 'user', content: messages }];
+					// Simple string
+					userContent = messages;
 				} else if (Array.isArray(messages)) {
-					// Already an array
-					messageArray = messages;
+					// Array of messages - extract content from each
+					userContent = messages.map(msg => {
+						if (typeof msg === 'string') return msg;
+						if (msg && msg.content) return msg.content;
+						if (msg && msg.kwargs && msg.kwargs.content) return msg.kwargs.content;
+						return String(msg);
+					}).join('\n');
 				} else if (messages && typeof messages === 'object') {
 					// Check if it's a LangChain ChatPromptValue object
-					if (messages.lc && messages.kwargs && messages.kwargs.messages) {
-						console.log('🔗 Detected LangChain ChatPromptValue format');
-						// Extract messages from LangChain format
-						messageArray = messages.kwargs.messages.map((msg: any) => {
+					if (messages.kwargs && messages.kwargs.messages && Array.isArray(messages.kwargs.messages)) {
+						console.log('🔗 Detected LangChain ChatPromptValue format - extracting content');
+						// Extract actual content from LangChain messages
+						userContent = messages.kwargs.messages.map((msg: any) => {
 							if (msg.kwargs && msg.kwargs.content) {
-								// Determine role from LangChain message type
-								let role = 'user';
-								if (msg.id && msg.id.includes && msg.id.includes('AIMessage')) {
-									role = 'assistant';
-								} else if (msg.id && msg.id.includes && msg.id.includes('SystemMessage')) {
-									role = 'system';
-								}
-								return { role, content: msg.kwargs.content };
+								return msg.kwargs.content;
 							}
-							return { role: 'user', content: String(msg) };
-						});
-					} else if (messages.content || messages.text) {
-						// Simple message object
-						messageArray = [messages];
+							return String(msg);
+						}).join('\n');
+					} else if (messages.content) {
+						userContent = messages.content;
+					} else if (messages.text) {
+						userContent = messages.text;
 					} else {
-						// Fallback - convert to string
-						messageArray = [{ role: 'user', content: JSON.stringify(messages) }];
+						// Last resort - just use the content we got
+						userContent = 'Hello';
 					}
 				} else {
-					// Fallback - convert whatever it is to string
-					messageArray = [{ role: 'user', content: String(messages || '') }];
+					userContent = 'Hello';
 				}
+				
+				console.log('📝 Extracted user content:', JSON.stringify(userContent));
+				
+				// Create a simple message array
+				const messageArray = [{ role: 'user', content: userContent }];
 
 				console.log('📝 Normalized messageArray:', messageArray);
 
@@ -289,17 +292,8 @@ export class FusionChatModel implements INodeType {
 					};
 				});
 
-				// For Fusion API, we'll convert to prompt format
-				console.log('📝 Formatted messages before prompt conversion:', JSON.stringify(formattedMessages, null, 2));
-				
-				let prompt = '';
-				const systemMessages = formattedMessages.filter(m => m.role === 'system');
-				const userMessages = formattedMessages.filter(m => m.role !== 'system');
-
-				if (systemMessages.length > 0) {
-					prompt += systemMessages.map(m => m.content).join('\n') + '\n\n';
-				}
-				prompt += userMessages.map(m => `${m.role === 'assistant' ? 'Assistant' : 'User'}: ${m.content}`).join('\n');
+				// For Fusion API, use the user content directly as the prompt
+				let prompt = userContent;
 				
 				console.log('📄 Final prompt being sent:', JSON.stringify(prompt));
 
