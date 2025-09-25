@@ -159,9 +159,11 @@ class FusionChatModel {
             lc_runnable: true,
             // Required Runnable methods
             async batch(inputs, options) {
-                console.log('📦 batch method called with inputs:', inputs.length);
+                console.log('📦 batch method called with inputs type:', typeof inputs, 'length:', Array.isArray(inputs) ? inputs.length : 'not array');
+                // Ensure inputs is an array
+                const inputArray = Array.isArray(inputs) ? inputs : [inputs];
                 const results = [];
-                for (const input of inputs) {
+                for (const input of inputArray) {
                     const result = await this.invoke(input, options);
                     results.push(result);
                 }
@@ -194,15 +196,42 @@ class FusionChatModel {
             },
             // Standard text generation call
             async call(messages) {
+                console.log('📞 call method - delegating to invoke');
                 return this.invoke(messages);
             },
             // Enhanced invoke method that handles both regular and tool-enabled calls
             async invoke(messages, options) {
+                console.log('🔍 invoke called with messages type:', typeof messages, 'value:', messages);
                 // Check if tools are provided in options
                 const tools = options?.tools || [];
                 const hasTools = tools.length > 0;
+                // Normalize messages input - handle various input formats
+                let messageArray = [];
+                if (typeof messages === 'string') {
+                    // Single string message
+                    messageArray = [{ role: 'user', content: messages }];
+                }
+                else if (Array.isArray(messages)) {
+                    // Already an array
+                    messageArray = messages;
+                }
+                else if (messages && typeof messages === 'object') {
+                    // Single message object
+                    if (messages.content || messages.text) {
+                        messageArray = [messages];
+                    }
+                    else {
+                        // Might be a complex object, convert to string
+                        messageArray = [{ role: 'user', content: JSON.stringify(messages) }];
+                    }
+                }
+                else {
+                    // Fallback - convert whatever it is to string
+                    messageArray = [{ role: 'user', content: String(messages || '') }];
+                }
+                console.log('📝 Normalized messageArray:', messageArray);
                 // Convert messages to OpenAI format for better model compatibility
-                const formattedMessages = messages.map((msg) => {
+                const formattedMessages = messageArray.map((msg) => {
                     if (typeof msg === 'string') {
                         return { role: 'user', content: msg };
                     }
