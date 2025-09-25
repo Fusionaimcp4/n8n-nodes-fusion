@@ -177,6 +177,36 @@ export class FusionChatModel implements INodeType {
 				return true;
 			},
 			
+			// LangChain Runnable interface implementation
+			lc_runnable: true,
+			
+			// Required Runnable methods
+			async batch(inputs: any[], options?: any) {
+				console.log('📦 batch method called with inputs:', inputs.length);
+				const results = [];
+				for (const input of inputs) {
+					const result = await this.invoke(input, options);
+					results.push(result);
+				}
+				return results;
+			},
+			
+			async transform(generator: any, options?: any) {
+				console.log('🔄 transform method called');
+				return this.invoke(generator, options);
+			},
+			
+			pipe(other: any) {
+				console.log('🔗 pipe method called');
+				return {
+					...this,
+					async invoke(input: any, options?: any) {
+						const result = await languageModel.invoke(input, options);
+						return other.invoke(result, options);
+					}
+				};
+			},
+			
 			// Debug: Log when model is created
 			get _debug() {
 				console.log('Fusion Chat Model created with:', {
