@@ -237,7 +237,7 @@ export class FusionChatModel implements INodeType {
 				const tools = options?.tools || [];
 				const hasTools = tools.length > 0;
 
-				// Normalize messages input - handle various input formats
+				// Normalize messages input - handle LangChain ChatPromptValue and other formats
 				let messageArray: any[] = [];
 				
 				if (typeof messages === 'string') {
@@ -247,11 +247,28 @@ export class FusionChatModel implements INodeType {
 					// Already an array
 					messageArray = messages;
 				} else if (messages && typeof messages === 'object') {
-					// Single message object
-					if (messages.content || messages.text) {
+					// Check if it's a LangChain ChatPromptValue object
+					if (messages.lc && messages.kwargs && messages.kwargs.messages) {
+						console.log('🔗 Detected LangChain ChatPromptValue format');
+						// Extract messages from LangChain format
+						messageArray = messages.kwargs.messages.map((msg: any) => {
+							if (msg.kwargs && msg.kwargs.content) {
+								// Determine role from LangChain message type
+								let role = 'user';
+								if (msg.id && msg.id.includes && msg.id.includes('AIMessage')) {
+									role = 'assistant';
+								} else if (msg.id && msg.id.includes && msg.id.includes('SystemMessage')) {
+									role = 'system';
+								}
+								return { role, content: msg.kwargs.content };
+							}
+							return { role: 'user', content: String(msg) };
+						});
+					} else if (messages.content || messages.text) {
+						// Simple message object
 						messageArray = [messages];
 					} else {
-						// Might be a complex object, convert to string
+						// Fallback - convert to string
 						messageArray = [{ role: 'user', content: JSON.stringify(messages) }];
 					}
 				} else {
