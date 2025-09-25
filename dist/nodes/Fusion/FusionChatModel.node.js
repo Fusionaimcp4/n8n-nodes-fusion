@@ -77,8 +77,8 @@ class FusionChatModel {
             supportsToolCalling: true,
             // Main method n8n calls for chat models
             async generate(messages, options) {
-                console.log('🎲 generate called with:', messages);
-                // Extract user content from messages
+                console.log('🎲 generate called with:', typeof messages, messages);
+                // Extract user content from messages - handle LangChain format
                 let userContent = '';
                 if (Array.isArray(messages)) {
                     userContent = messages.map(msg => {
@@ -91,10 +91,32 @@ class FusionChatModel {
                         return String(msg);
                     }).join('\n');
                 }
+                else if (messages && typeof messages === 'object') {
+                    // Handle LangChain ChatPromptValue format
+                    if (messages.kwargs && messages.kwargs.messages && Array.isArray(messages.kwargs.messages)) {
+                        console.log('🔗 Detected LangChain ChatPromptValue format');
+                        userContent = messages.kwargs.messages.map((msg) => {
+                            if (msg.kwargs && msg.kwargs.content) {
+                                return msg.kwargs.content;
+                            }
+                            return String(msg);
+                        }).join('\n');
+                    }
+                    else if (messages.content) {
+                        userContent = messages.content;
+                    }
+                    else {
+                        userContent = String(messages);
+                    }
+                }
                 else {
                     userContent = String(messages);
                 }
-                console.log('📝 User content:', userContent);
+                console.log('📝 Extracted user content:', userContent);
+                // Fallback if content is empty
+                if (!userContent || userContent.trim() === '') {
+                    userContent = 'Hello';
+                }
                 // Call Fusion API
                 const response = await fetch(`${baseUrl}/api/chat`, {
                     method: 'POST',
@@ -107,8 +129,11 @@ class FusionChatModel {
                         provider: 'neuroswitch'
                     }),
                 });
+                console.log('📡 API Response status:', response.status);
                 if (!response.ok) {
-                    throw new Error(`Fusion API error: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error('❌ API Error:', errorText);
+                    throw new Error(`Fusion API error: ${response.status} - ${errorText}`);
                 }
                 const data = await response.json();
                 const responseText = data.response?.text || data.text || '';

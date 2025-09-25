@@ -87,11 +87,12 @@ export class FusionChatModel implements INodeType {
 			supportsToolCalling: true,
 
 			// Main method n8n calls for chat models
-			async generate(messages: any[], options?: any) {
-				console.log('🎲 generate called with:', messages);
+			async generate(messages: any, options?: any) {
+				console.log('🎲 generate called with:', typeof messages, messages);
 
-				// Extract user content from messages
+				// Extract user content from messages - handle LangChain format
 				let userContent = '';
+				
 				if (Array.isArray(messages)) {
 					userContent = messages.map(msg => {
 						if (typeof msg === 'string') return msg;
@@ -99,11 +100,31 @@ export class FusionChatModel implements INodeType {
 						if (msg?.kwargs?.content) return msg.kwargs.content;
 						return String(msg);
 					}).join('\n');
+				} else if (messages && typeof messages === 'object') {
+					// Handle LangChain ChatPromptValue format
+					if (messages.kwargs && messages.kwargs.messages && Array.isArray(messages.kwargs.messages)) {
+						console.log('🔗 Detected LangChain ChatPromptValue format');
+						userContent = messages.kwargs.messages.map((msg: any) => {
+							if (msg.kwargs && msg.kwargs.content) {
+								return msg.kwargs.content;
+							}
+							return String(msg);
+						}).join('\n');
+					} else if (messages.content) {
+						userContent = messages.content;
+					} else {
+						userContent = String(messages);
+					}
 				} else {
 					userContent = String(messages);
 				}
 
-				console.log('📝 User content:', userContent);
+				console.log('📝 Extracted user content:', userContent);
+
+				// Fallback if content is empty
+				if (!userContent || userContent.trim() === '') {
+					userContent = 'Hello';
+				}
 
 				// Call Fusion API
 				const response = await fetch(`${baseUrl}/api/chat`, {
@@ -118,8 +139,12 @@ export class FusionChatModel implements INodeType {
 					}),
 				});
 
+				console.log('📡 API Response status:', response.status);
+				
 				if (!response.ok) {
-					throw new Error(`Fusion API error: ${response.status}`);
+					const errorText = await response.text();
+					console.error('❌ API Error:', errorText);
+					throw new Error(`Fusion API error: ${response.status} - ${errorText}`);
 				}
 
 				const data = await response.json() as any;
@@ -159,7 +184,7 @@ export class FusionChatModel implements INodeType {
 			bindTools(tools: any[]) {
 				return {
 					...this,
-					async generate(messages: any[], options?: any) {
+					async generate(messages: any, options?: any) {
 						return languageModel.generate(messages, { ...options, tools });
 					}
 				};
