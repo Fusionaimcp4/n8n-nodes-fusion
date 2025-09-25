@@ -27,7 +27,8 @@
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": false,
     "noUncheckedIndexedAccess": false,
-    "noPropertyAccessFromIndexSignature": false
+    "noPropertyAccessFromIndexSignature": false,
+    "noEmitOnError": false
   },
   "include": [
     "nodes/**/*",

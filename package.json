@@ -32,12 +32,13 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "postbuild": "copy nodes\\Fusion\\fusion.svg dist\\nodes\\Fusion\\fusion.svg && copy nodes\\Fusion\\Fusion.node.json dist\\nodes\\Fusion\\Fusion.node.json && copy nodes\\Fusion\\FusionChatModel.node.json dist\\nodes\\Fusion\\FusionChatModel.node.json && copy nodes\\Fusion\\FusionChat.node.json dist\\nodes\\Fusion\\FusionChat.node.json",
+    "postbuild": "cp nodes/Fusion/fusion.svg dist/nodes/Fusion/fusion.svg && cp nodes/Fusion/Fusion.node.json dist/nodes/Fusion/Fusion.node.json && cp nodes/Fusion/FusionChatModel.node.json dist/nodes/Fusion/FusionChatModel.node.json && cp nodes/Fusion/FusionChat.node.json dist/nodes/Fusion/FusionChat.node.json",
     "dev": "tsc --watch",
     "format": "prettier nodes credentials --write",
     "lint": "eslint nodes/**/*.ts credentials/**/*.ts package.json",
     "lintfix": "eslint nodes/**/*.ts credentials/**/*.ts package.json --fix",
     "prepublishOnly": "npm run build && npm run lint",
+    "prepare": "npm run build",
     "test": "jest"
   },
   "files": [
@@ -69,7 +70,17 @@
   },
   "peerDependencies": {
     "n8n-core": "*",
-    "n8n-workflow": "*"
+    "n8n-workflow": "*",
+    "@langchain/core": "^0.2.0",
+    "langchain": "^0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@langchain/core": {
+      "optional": true
+    },
+    "langchain": {
+      "optional": true
+    }
   },
   "publishConfig": {
     "access": "public",
