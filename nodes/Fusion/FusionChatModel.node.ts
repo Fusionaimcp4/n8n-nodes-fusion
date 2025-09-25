@@ -417,7 +417,7 @@ ${prompt}`;
 					id: ["langchain_core", "messages", "AIMessage"]
 				};
 
-				// Create a proper ChatGeneration object that matches LangChain's exact structure
+				// Create a proper ChatGeneration object with LangChain identifiers
 				const chatGeneration = {
 					text: responseText,
 					message: aiMessage,
@@ -426,7 +426,13 @@ ${prompt}`;
 						provider: data.provider,
 						tokens: data.tokens,
 						cost: data.cost_charged_to_credits
-					}
+					},
+					// Critical: Add LangChain class identifiers that ToolCallingAgentOutputParser expects
+					lc_serializable: true,
+					lc: 1,
+					type: 'constructor',
+					id: ['langchain_core', 'outputs', 'ChatGeneration'],
+					lc_namespace: ['langchain_core', 'outputs']
 				};
 
 				// If tools were provided, try to parse tool calls from the response
