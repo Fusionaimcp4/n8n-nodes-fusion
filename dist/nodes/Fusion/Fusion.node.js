@@ -24,25 +24,28 @@ class Fusion {
             ],
             properties: [
                 {
-                    displayName: 'Resource',
-                    name: 'resource',
+                    displayName: 'Operation',
+                    name: 'operation',
                     type: 'options',
                     noDataExpression: true,
                     options: [
                         {
                             name: 'Chat',
                             value: 'chat',
-                            description: 'Chat with AI models',
+                            action: 'Send chat message',
+                            description: 'Send a message to AI model and get response',
                         },
                         {
-                            name: 'Models',
-                            value: 'models',
-                            description: 'Manage AI models',
+                            name: 'List Models',
+                            value: 'listModels',
+                            action: 'List available models',
+                            description: 'Get list of available AI models',
                         },
                         {
-                            name: 'Account',
-                            value: 'account',
-                            description: 'Account operations',
+                            name: 'Get Account Info',
+                            value: 'getAccount',
+                            action: 'Get account information',
+                            description: 'Get account details and usage information',
                         },
                     ],
                     default: 'chat',
