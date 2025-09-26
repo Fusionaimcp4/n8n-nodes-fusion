@@ -14,8 +14,8 @@ class FusionChat {
             defaults: {
                 name: 'Fusion Chat',
             },
-            inputs: ['Main'],
-            outputs: ['Main'],
+            inputs: ['main'],
+            outputs: ['main'],
             credentials: [
                 {
                     name: 'fusionApi',

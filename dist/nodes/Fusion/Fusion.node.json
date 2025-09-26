@@ -1,0 +1,14 @@
+{
+  "name": "fusion",
+  "displayName": "Fusion AI",
+  "description": "Interact with Fusion AI (NeuroSwitch multi-provider orchestration)",
+  "version": 1,
+  "group": ["transform"],
+  "icon": "file:fusion.svg",
+  "defaults": {
+    "name": "Fusion AI"
+  },
+  "inputs": ["main"],
+  "outputs": ["main"],
+  "credentials": ["fusionApi"]
+}

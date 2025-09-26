@@ -4,6 +4,7 @@ import {
 	INodeType,
 	INodeTypeDescription,
 	INodeExecutionData,
+	NodeConnectionType,
 } from 'n8n-workflow';
 
 export class FusionChat implements INodeType {
