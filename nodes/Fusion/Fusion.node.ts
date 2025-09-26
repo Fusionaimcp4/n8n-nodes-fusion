@@ -35,85 +35,25 @@ export class Fusion implements INodeType {
 				noDataExpression: true,
 				options: [
 					{
-						name: 'Chat',
-						value: 'chat',
-						action: 'Send chat message',
-						description: 'Send a message to AI model and get response',
-					},
-					{
-						name: 'List Models',
-						value: 'listModels',
-						action: 'List available models',
-						description: 'Get list of available AI models',
-					},
-					{
-						name: 'Get Account Info',
-						value: 'getAccount',
-						action: 'Get account information',
-						description: 'Get account details and usage information',
-					},
-				],
-				default: 'chat',
-			},
-			{
-				displayName: 'Operation',
-				name: 'operation',
-				type: 'options',
-				noDataExpression: true,
-				displayOptions: {
-					show: {
-						resource: ['chat'],
-					},
-				},
-				options: [
-					{
 						name: 'Send Message',
 						value: 'sendMessage',
 						action: 'Send a message to AI model',
 						description: 'Send a message to an AI model and get a response',
 					},
-				],
-				default: 'sendMessage',
-			},
-			{
-				displayName: 'Operation',
-				name: 'operation',
-				type: 'options',
-				noDataExpression: true,
-				displayOptions: {
-					show: {
-						resource: ['models'],
-					},
-				},
-				options: [
 					{
 						name: 'List Models',
 						value: 'listModels',
 						action: 'List available models',
 						description: 'Get a list of available AI models',
 					},
-				],
-				default: 'listModels',
-			},
-			{
-				displayName: 'Operation',
-				name: 'operation',
-				type: 'options',
-				noDataExpression: true,
-				displayOptions: {
-					show: {
-						resource: ['account'],
-					},
-				},
-				options: [
 					{
-						name: 'Get Info',
-						value: 'getInfo',
+						name: 'Get Account Info',
+						value: 'getAccount',
 						action: 'Get account information',
 						description: 'Get account information and usage',
 					},
 				],
-				default: 'getInfo',
+				default: 'sendMessage',
 			},
 			// Chat parameters
 			{
@@ -125,7 +65,6 @@ export class Fusion implements INodeType {
 				},
 				displayOptions: {
 					show: {
-						resource: ['chat'],
 						operation: ['sendMessage'],
 					},
 				},
@@ -138,7 +77,6 @@ export class Fusion implements INodeType {
 				type: 'string',
 				displayOptions: {
 					show: {
-						resource: ['chat'],
 						operation: ['sendMessage'],
 					},
 				},
@@ -156,7 +94,6 @@ export class Fusion implements INodeType {
 				},
 				displayOptions: {
 					show: {
-						resource: ['chat'],
 						operation: ['sendMessage'],
 					},
 				},
@@ -171,7 +108,6 @@ export class Fusion implements INodeType {
 				placeholder: 'Add Field',
 				displayOptions: {
 					show: {
-						resource: ['chat'],
 						operation: ['sendMessage'],
 					},
 				},
@@ -258,17 +194,27 @@ export class Fusion implements INodeType {
 					});
 					
 					const models = (response.data || response || []) as any[];
-					return models.map((model: any) => ({
-						name: `${model.name || model.id_string} - $${model.input_cost_per_million_tokens || 'N/A'}/1M input`,
-						value: model.id_string || model.id,
-					}));
+					const modelOptions = models
+						.filter((m: any) => m.is_active)
+						.map((m: any) => ({
+							name: `${m.provider}: ${m.name}`,
+							value: `${m.provider}:${m.id_string}`,  // e.g. "openai:gpt-4o-mini"
+						}));
+
+					// Always include NeuroSwitch as the first option
+					modelOptions.unshift({
+						name: 'NeuroSwitch (auto routing)',
+						value: 'neuroswitch'
+					});
+
+					return modelOptions;
 				} catch (error: any) {
 					console.warn('Failed to load Fusion models:', error.message);
 					return [
-						{ name: 'NeuroSwitch', value: 'neuroswitch' },
-						{ name: 'OpenAI GPT-4', value: 'openai/gpt-4' },
-						{ name: 'Anthropic Claude', value: 'anthropic/claude-3-sonnet' },
-						{ name: 'Google Gemini', value: 'google/gemini-pro' },
+						{ name: 'NeuroSwitch (auto routing)', value: 'neuroswitch' },
+						{ name: 'OpenAI: GPT-4', value: 'openai:gpt-4' },
+						{ name: 'Anthropic: Claude 3 Sonnet', value: 'anthropic:claude-3-sonnet' },
+						{ name: 'Google: Gemini Pro', value: 'google:gemini-pro' },
 					];
 				}
 			},
@@ -283,12 +229,11 @@ export class Fusion implements INodeType {
 			try {
 				const credentials = await this.getCredentials('fusionApi');
 				const baseUrl = (credentials.baseUrl as string)?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
-				const resource = this.getNodeParameter('resource', i) as string;
 				const operation = this.getNodeParameter('operation', i) as string;
 
 				let responseData: any;
 
-				if (resource === 'chat' && operation === 'sendMessage') {
+				if (operation === 'sendMessage') {
 					const model = this.getNodeParameter('model', i) as string;
 					const message = this.getNodeParameter('message', i) as string;
 					const systemPrompt = this.getNodeParameter('systemPrompt', i, '') as string;
@@ -300,16 +245,33 @@ export class Fusion implements INodeType {
 						prompt = `${systemPrompt}\n\nUser: ${message}`;
 					}
 
+					// Split provider / model from dropdown
+					let provider = 'neuroswitch';
+					let modelId: string | undefined = undefined;
+					
+					if (model && model.includes(':')) {
+						[provider, modelId] = model.split(':');
+						// Remove provider prefix from modelId if it exists (e.g., "openai/gpt-4o-mini" -> "gpt-4o-mini")
+						if (modelId && modelId.includes('/')) {
+							modelId = modelId.split('/')[1];
+						}
+					} else if (model) {
+						provider = model; // Handle legacy "neuroswitch" or other single values
+					}
+
 					const requestBody: any = {
 						prompt,
-						provider: model.includes('/') ? model.split('/')[0] : 'neuroswitch',
-						model: model,
+						provider,
 						temperature: additionalFields.temperature || 0.3,
 						max_tokens: additionalFields.maxTokens || 1024,
 						top_p: additionalFields.topP || 1,
 						frequency_penalty: additionalFields.frequencyPenalty || 0,
 						presence_penalty: additionalFields.presencePenalty || 0,
 					};
+
+					if (provider !== 'neuroswitch' && modelId) {
+						requestBody.model = modelId;
+					}
 
 					responseData = await this.helpers.httpRequest({
 						method: 'POST',
@@ -321,7 +283,7 @@ export class Fusion implements INodeType {
 						body: requestBody,
 					});
 
-				} else if (resource === 'models' && operation === 'listModels') {
+				} else if (operation === 'listModels') {
 					responseData = await this.helpers.httpRequest({
 						method: 'GET',
 						url: `${baseUrl}/api/models`,
@@ -331,7 +293,7 @@ export class Fusion implements INodeType {
 						},
 					});
 
-				} else if (resource === 'account' && operation === 'getInfo') {
+				} else if (operation === 'getAccount') {
 					responseData = await this.helpers.httpRequest({
 						method: 'GET',
 						url: `${baseUrl}/api/account`,
