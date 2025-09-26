@@ -125,8 +125,11 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
 
 		// Use the EXACT same format as your working curl
 		const requestBody: any = {
+			model: this.provider === 'neuroswitch' ? 'NeuroSwitch' : this.provider,
 			prompt,
-			provider: this.provider,
+			messages: [
+				{ role: "user", content: prompt }
+			],
 			temperature: this.temperature,
 			max_tokens: this.maxTokens
 		};
