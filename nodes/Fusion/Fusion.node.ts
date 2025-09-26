@@ -63,11 +63,6 @@ export class Fusion implements INodeType {
 				typeOptions: {
 					loadOptionsMethod: 'getModels',
 				},
-				displayOptions: {
-					show: {
-						operation: ['sendMessage'],
-					},
-				},
 				default: 'neuroswitch',
 				description: 'The AI model to use for chat completion',
 			},
@@ -75,11 +70,6 @@ export class Fusion implements INodeType {
 				displayName: 'Message',
 				name: 'message',
 				type: 'string',
-				displayOptions: {
-					show: {
-						operation: ['sendMessage'],
-					},
-				},
 				default: '',
 				placeholder: 'Enter your message here...',
 				description: 'The message to send to the AI model',
@@ -92,11 +82,6 @@ export class Fusion implements INodeType {
 				typeOptions: {
 					rows: 3,
 				},
-				displayOptions: {
-					show: {
-						operation: ['sendMessage'],
-					},
-				},
 				default: '',
 				placeholder: 'You are a helpful assistant...',
 				description: 'System prompt to set the behavior of the AI (optional)',
@@ -106,11 +91,6 @@ export class Fusion implements INodeType {
 				name: 'additionalFields',
 				type: 'collection',
 				placeholder: 'Add Field',
-				displayOptions: {
-					show: {
-						operation: ['sendMessage'],
-					},
-				},
 				default: {},
 				options: [
 					{
