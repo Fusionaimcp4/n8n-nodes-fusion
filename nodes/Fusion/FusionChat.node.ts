@@ -51,7 +51,7 @@ export class FusionChat implements INodeType {
 					loadOptionsMethod: 'getModels',
 				},
 				default: 'neuroswitch',
-				description: 'The AI model to use for chat completion',
+				description: 'Select which model/provider to use',
 			},
 			{
 				displayName: 'System Prompt',
@@ -161,17 +161,27 @@ export class FusionChat implements INodeType {
 					});
 
 					const models = (response.data || response || []) as any[];
-					return models.map((model: any) => ({
-						name: `${model.name || model.id_string} ($${model.input_cost_per_million_tokens || 'N/A'}/1M)`,
-						value: model.id_string || model.id,
-					}));
+					const modelOptions = models
+						.filter((m: any) => m.is_active)
+						.map((m: any) => ({
+							name: `${m.provider}: ${m.name}`,
+							value: `${m.provider}:${m.id_string}`,  // e.g. "openai:gpt-4o-mini"
+						}));
+
+					// Always include NeuroSwitch as the first option
+					modelOptions.unshift({
+						name: 'NeuroSwitch (auto routing)',
+						value: 'neuroswitch'
+					});
+
+					return modelOptions;
 				} catch (error: any) {
 					console.warn('Failed to load Fusion models:', error.message);
 					return [
-						{ name: 'NeuroSwitch', value: 'neuroswitch' },
-						{ name: 'OpenAI GPT-4', value: 'openai/gpt-4' },
-						{ name: 'Anthropic Claude', value: 'anthropic/claude-3-sonnet' },
-						{ name: 'Google Gemini', value: 'google/gemini-pro' },
+						{ name: 'NeuroSwitch (auto routing)', value: 'neuroswitch' },
+						{ name: 'OpenAI: GPT-4', value: 'openai:gpt-4' },
+						{ name: 'Anthropic: Claude 3 Sonnet', value: 'anthropic:claude-3-sonnet' },
+						{ name: 'Google: Gemini Pro', value: 'google:gemini-pro' },
 					];
 				}
 			},
@@ -198,16 +208,33 @@ export class FusionChat implements INodeType {
 					prompt = `${systemPrompt}\n\nUser: ${message}`;
 				}
 
+				// Split provider / model from dropdown
+				let provider = 'neuroswitch';
+				let modelId: string | undefined = undefined;
+				
+				if (model && model.includes(':')) {
+					[provider, modelId] = model.split(':');
+					// Remove provider prefix from modelId if it exists (e.g., "openai/gpt-4o-mini" -> "gpt-4o-mini")
+					if (modelId && modelId.includes('/')) {
+						modelId = modelId.split('/')[1];
+					}
+				} else if (model) {
+					provider = model; // Handle legacy "neuroswitch" or other single values
+				}
+
 				const requestBody: any = {
 					prompt,
-					provider: model.includes('/') ? model.split('/')[0] : 'neuroswitch',
-					model: model,
+					provider,
 					temperature: additionalFields.temperature || 0.3,
 					max_tokens: additionalFields.maxTokens || 1024,
 					top_p: additionalFields.topP || 1,
 					frequency_penalty: additionalFields.frequencyPenalty || 0,
 					presence_penalty: additionalFields.presencePenalty || 0,
 				};
+
+				if (provider !== 'neuroswitch' && modelId) {
+					requestBody.model = modelId;
+				}
 
 				const response = await this.helpers.httpRequest({
 					method: 'POST',

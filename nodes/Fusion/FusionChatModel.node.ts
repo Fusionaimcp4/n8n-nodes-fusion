@@ -1,4 +1,4 @@
-import { INodeType, INodeTypeDescription, NodeConnectionTypes } from 'n8n-workflow';
+import { INodeType, INodeTypeDescription, NodeConnectionTypes, ILoadOptionsFunctions } from 'n8n-workflow';
 import { BaseChatModel, BaseChatModelCallOptions } from '@langchain/core/language_models/chat_models';
 import { AIMessage, BaseMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
@@ -11,13 +11,11 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   private baseUrl: string;
   private _boundTools?: any[];
 
-  // Expose BOTH a data property and a getter — some guards read either
   public supportsToolCalling = true;
   get _supportsToolCalling(): boolean { return true; }
   get supportsToolChoice(): boolean { return true; }
   get supportsStructuredOutput(): boolean { return true; }
 
-  // n8n expects bindTools to return a same-type instance
   override bindTools(tools: any[]): this {
     this._boundTools = tools;
     return this;
@@ -44,13 +42,30 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
 
     const prompt = messages.map((m) => (m as any).content).join('\n');
 
-    const body = {
-      model: this.model,
+    // Split provider / model from dropdown
+    let provider = 'neuroswitch';
+    let modelId: string | undefined = undefined;
+    
+    if (this.model && this.model.includes(':')) {
+      [provider, modelId] = this.model.split(':');
+      // Remove provider prefix from modelId if it exists (e.g., "openai/gpt-4o-mini" -> "gpt-4o-mini")
+      if (modelId && modelId.includes('/')) {
+        modelId = modelId.split('/')[1];
+      }
+    } else if (this.model) {
+      provider = this.model; // Handle legacy "neuroswitch" or other single values
+    }
+
+    const body: Record<string, any> = {
       prompt,
-      messages: messages.map((m) => ({ role: roleOf(m), content: (m as any).content })),
+      provider,
       temperature: this.options?.temperature ?? 0.3,
       max_tokens: this.options?.maxTokens ?? 1024,
-    } as Record<string, any>;
+    };
+
+    if (provider !== 'neuroswitch' && modelId) {
+      body.model = modelId;
+    }
 
     const res = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
@@ -134,7 +149,16 @@ export class FusionChatModel implements INodeType {
     outputNames: ['Model'],
     credentials: [{ name: 'fusionApi', required: true }],
     properties: [
-      { displayName: 'Model', name: 'model', type: 'string', default: 'neuroswitch' },
+      {
+        displayName: 'Model',
+        name: 'model',
+        type: 'options',
+        typeOptions: {
+          loadOptionsMethod: 'getModels',
+        },
+        default: 'neuroswitch',
+        description: 'Select which model/provider to use',
+      },
       {
         displayName: 'Options',
         name: 'options',
@@ -146,6 +170,37 @@ export class FusionChatModel implements INodeType {
         ],
       },
     ],
+  };
+
+  methods = {
+    loadOptions: {
+      async getModels(this: ILoadOptionsFunctions) {
+        const credentials = await this.getCredentials('fusionApi');
+        const baseUrl = credentials.baseUrl ?? 'https://api.mcp4.ai';
+
+        const res = await this.helpers.httpRequest({
+          method: 'GET',
+          url: `${baseUrl}/api/models`,
+          headers: { Authorization: `ApiKey ${credentials.apiKey}` },
+        });
+
+        const models = (res.data || res) as any[];
+        const modelOptions = models
+          .filter((m: any) => m.is_active)
+          .map((m: any) => ({
+            name: `${m.provider}: ${m.name}`,
+            value: `${m.provider}:${m.id_string}`,  // e.g. "openai:gpt-4o-mini"
+          }));
+
+        // Always include NeuroSwitch as the first option
+        modelOptions.unshift({
+          name: 'NeuroSwitch (auto routing)',
+          value: 'neuroswitch'
+        });
+
+        return modelOptions;
+      },
+    },
   };
 
   async supplyData(this: any, itemIndex: number) {
