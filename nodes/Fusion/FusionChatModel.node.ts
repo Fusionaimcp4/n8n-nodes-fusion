@@ -78,15 +78,24 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
 		// Get bound tools or tools from options
 		const tools = (this as any)._boundTools || options?.tools || [];
 		
-		// Convert input to BaseMessage array
+		// Convert input to BaseMessage array - handle ChatPromptValue objects
 		let messages: BaseMessage[] = [];
 		if (typeof input === 'string') {
 			messages = [{ content: input, role: 'user' } as any];
 		} else if (Array.isArray(input)) {
 			messages = input;
+		} else if (input && input.messages && Array.isArray(input.messages)) {
+			// Handle ChatPromptValue object (what n8n sends)
+			console.log('📝 Detected ChatPromptValue with messages:', input.messages);
+			messages = input.messages;
 		} else if (input && input.content) {
 			messages = [input];
+		} else {
+			// Fallback - try to extract any content we can find
+			messages = [{ content: 'Hello', role: 'user' } as any];
 		}
+
+		console.log('📋 Converted to messages array:', messages);
 
 		// Add tools to options if available
 		const enhancedOptions = tools.length > 0 ? { ...options, tools } : options;
@@ -96,8 +105,26 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
 
 	/** Convert LC messages -> plain prompt (simple join) */
 	private messagesToPrompt(messages: BaseMessage[]): string {
+		console.log('🔤 messagesToPrompt input:', messages);
+		
 		const pick = (m: any) => {
-			const c = m?.content;
+			console.log('🔍 Processing message:', m);
+			
+			// Handle direct content
+			let c = m?.content;
+			
+			// If no direct content, try lc_kwargs.content (LangChain format)
+			if (!c && m?.lc_kwargs?.content) {
+				c = m.lc_kwargs.content;
+			}
+			
+			// If still no content, try other properties
+			if (!c && m?.text) {
+				c = m.text;
+			}
+			
+			console.log('📄 Extracted content:', c);
+			
 			if (typeof c === 'string') return c;
 			if (Array.isArray(c)) {
 				return c
@@ -108,7 +135,10 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
 			}
 			return String(c ?? '');
 		};
-		return messages.map(pick).filter(Boolean).join('\n');
+		
+		const result = messages.map(pick).filter(Boolean).join('\n');
+		console.log('🎯 Final prompt result:', JSON.stringify(result));
+		return result;
 	}
 
 	/** Core generation for LangChain with tool calling support */
