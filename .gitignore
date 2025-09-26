@@ -57,3 +57,9 @@ temp/
 
 # Package lock files (keep package-lock.json but ignore yarn.lock if using npm)
 yarn.lock
+
+LmChatAnthropic.node.js
+LmChatAzureOpenAi.node.js
+LmChatOpenRouter.node.js
+LmChatGoogleGemini.node.js
+savedreferanceFusionChatModel.node.ts

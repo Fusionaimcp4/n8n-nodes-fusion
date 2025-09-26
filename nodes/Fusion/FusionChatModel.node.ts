@@ -1,433 +1,163 @@
-import {
-	ILoadOptionsFunctions,
-	INodeType,
-	INodeTypeDescription,
-	ISupplyDataFunctions,
-	SupplyData,
-} from 'n8n-workflow';
+import { INodeType, INodeTypeDescription, NodeConnectionTypes } from 'n8n-workflow';
+import { BaseChatModel, BaseChatModelCallOptions } from '@langchain/core/language_models/chat_models';
+import { AIMessage, BaseMessage } from '@langchain/core/messages';
+import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
 
-import { BaseMessage, AIMessage } from '@langchain/core/messages';
-import { ChatGeneration, ChatResult } from '@langchain/core/outputs';
-import {
-	BaseChatModel,
-	BaseChatModelCallOptions,
-} from '@langchain/core/language_models/chat_models';
-
-/**
- * Fusion LangChain chat wrapper with tool calling support
- */
+// Fusion LangChain chat model with tool-calling surface restored
 class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
-	private readonly apiKey: string;
-	private readonly baseUrl: string;
-	private readonly provider: string;
-	private readonly temperature: number;
-	private readonly maxTokens: number;
+  private model: string;
+  private options: any;
+  private apiKey: string;
+  private baseUrl: string;
+  private _boundTools?: any[];
 
-	constructor(opts: { 
-		apiKey: string; 
-		baseUrl: string; 
-		provider: string;
-		temperature?: number;
-		maxTokens?: number;
-	}) {
-		super({});
-		this.apiKey = opts.apiKey;
-		this.baseUrl = opts.baseUrl.replace(/\/+$/, '');
-		this.provider = opts.provider || 'neuroswitch';
-		this.temperature = opts.temperature ?? 0.3;
-		this.maxTokens = opts.maxTokens ?? 1024;
-	}
+  // Expose BOTH a data property and a getter — some guards read either
+  public supportsToolCalling = true;
+  get _supportsToolCalling(): boolean { return true; }
+  get supportsToolChoice(): boolean { return true; }
+  get supportsStructuredOutput(): boolean { return true; }
 
-	_llmType(): string {
-		return 'fusion';
-	}
+  // n8n expects bindTools to return a same-type instance
+  override bindTools(tools: any[]): this {
+    this._boundTools = tools;
+    return this;
+  }
 
-	/** Tool calling support property */
-	get supportsToolCalling(): boolean {
-		console.log('🔍 n8n checking supportsToolCalling - returning true');
-		return true;
-	}
+  constructor(args: { model: string; options: any; apiKey: string; baseUrl: string }) {
+    super({});
+    this.model = args.model;
+    this.options = args.options;
+    this.apiKey = args.apiKey;
+    this.baseUrl = args.baseUrl;
+  }
 
-	/** Alternative tool calling property */
-	get _supportsToolCalling(): boolean {
-		console.log('🔍 n8n checking _supportsToolCalling - returning true');
-		return true;
-	}
+  _llmType() { return 'fusion'; }
 
-	/** Additional tool support properties */
-	get supportsToolChoice(): boolean {
-		return true;
-	}
+  async _generate(messages: BaseMessage[], _options?: BaseChatModelCallOptions): Promise<ChatResult> {
+    const roleOf = (m: BaseMessage) => {
+      const t = (m as any)?._getType?.() as string | undefined;
+      if (t === 'human') return 'user';
+      if (t === 'ai') return 'assistant';
+      if (t === 'system') return 'system';
+      return t ?? 'user';
+    };
 
-	get supportsStructuredOutput(): boolean {
-		return true;
-	}
+    const prompt = messages.map((m) => (m as any).content).join('\n');
 
-	/** Bind tools method required by n8n */
-	override bindTools(tools: any[]): this {
-		console.log('🔧 bindTools called with tools:', tools);
-		// Store tools for use in _generate
-		(this as any)._boundTools = tools;
-		return this;
-	}
+    const body = {
+      model: this.model,
+      prompt,
+      messages: messages.map((m) => ({ role: roleOf(m), content: (m as any).content })),
+      temperature: this.options?.temperature ?? 0.3,
+      max_tokens: this.options?.maxTokens ?? 1024,
+    } as Record<string, any>;
 
-	/** Enhanced invoke method that handles tool calls */
-	override async invoke(input: any, options?: any): Promise<any> {
-		console.log('🔍 invoke called with input type:', typeof input, 'value:', input);
-		
-		// Get bound tools or tools from options
-		const tools = (this as any)._boundTools || options?.tools || [];
-		
-		// Convert input to BaseMessage array - handle ChatPromptValue objects
-		let messages: BaseMessage[] = [];
-		if (typeof input === 'string') {
-			messages = [{ content: input, role: 'user' } as any];
-		} else if (Array.isArray(input)) {
-			messages = input;
-		} else if (input && input.messages && Array.isArray(input.messages)) {
-			// Handle ChatPromptValue object (what n8n sends)
-			console.log('📝 Detected ChatPromptValue with messages:', input.messages);
-			messages = input.messages;
-		} else if (input && input.content) {
-			messages = [input];
-		} else {
-			// Fallback - try to extract any content we can find
-			messages = [{ content: 'Hello', role: 'user' } as any];
-		}
+    const res = await fetch(`${this.baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `ApiKey ${this.apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
 
-		console.log('📋 Converted to messages array:', messages);
+    if (!res.ok) throw new Error(`Fusion API error: ${res.status} ${res.statusText}`);
 
-		// Add tools to options if available
-		const enhancedOptions = tools.length > 0 ? { ...options, tools } : options;
+    type Tokens = {
+      input_tokens?: number;
+      output_tokens?: number;
+      max_tokens?: number;
+      runtime?: number;
+      total_tokens?: number;
+    };
+    interface FusionResponse {
+      prompt?: string;
+      response?: { text?: string } | null;
+      provider?: string;
+      model?: string;
+      tokens?: Tokens;
+      cost_charged_to_credits?: number;
+    }
 
-		return this._generate(messages, enhancedOptions);
-	}
+    const data = (await res.json()) as FusionResponse;
+    const text = data?.response?.text ?? '';
 
-	/** Convert LC messages -> plain prompt (simple join) */
-	private messagesToPrompt(messages: BaseMessage[]): string {
-		console.log('🔤 messagesToPrompt input:', messages);
-		
-		const pick = (m: any) => {
-			console.log('🔍 Processing message:', m);
-			
-			// Handle direct content
-			let c = m?.content;
-			
-			// If no direct content, try lc_kwargs.content (LangChain format)
-			if (!c && m?.lc_kwargs?.content) {
-				c = m.lc_kwargs.content;
-			}
-			
-			// If still no content, try other properties
-			if (!c && m?.text) {
-				c = m.text;
-			}
-			
-			console.log('📄 Extracted content:', c);
-			
-			if (typeof c === 'string') return c;
-			if (Array.isArray(c)) {
-				return c
-					.map((p: any) =>
-						typeof p?.text === 'string' ? p.text : '',
-					)
-					.join('\n');
-			}
-			return String(c ?? '');
-		};
-		
-		const result = messages.map(pick).filter(Boolean).join('\n');
-		console.log('🎯 Final prompt result:', JSON.stringify(result));
-		return result;
-	}
+    const message = new AIMessage({
+      content: text,
+      additional_kwargs: {},
+      response_metadata: {
+        model: data?.model,
+        provider: data?.provider,
+        tokens: data?.tokens,
+        cost: data?.cost_charged_to_credits,
+      },
+      tool_calls: [],
+      invalid_tool_calls: [],
+    });
 
-	/** Core generation for LangChain with tool calling support */
-	public async _generate(
-		messages: BaseMessage[],
-		options?: BaseChatModelCallOptions,
-		_runManager?: any,
-	): Promise<ChatResult> {
-		const prompt = this.messagesToPrompt(messages);
-		
-		console.log('🔍 _generate called with prompt:', JSON.stringify(prompt));
-		console.log('🔗 API URL:', `${this.baseUrl}/api/chat`);
-		console.log('🔑 Authorization header:', `ApiKey ${String(this.apiKey).substring(0, 20)}...`);
+    const generation: ChatGeneration = {
+      text,
+      message,
+      generationInfo: {
+        model: data?.model,
+        provider: data?.provider,
+        tokens: data?.tokens,
+        cost: data?.cost_charged_to_credits,
+        tool_calls: [],
+      },
+    };
 
-		// Use the EXACT same format as your working curl
-		const requestBody: any = {
-			model: this.provider === 'neuroswitch' ? 'NeuroSwitch' : this.provider,
-			prompt,
-			messages: [
-				{ role: "user", content: prompt }
-			],
-			temperature: this.temperature,
-			max_tokens: this.maxTokens
-		};
-
-		console.log('🚀 Fusion API request:', JSON.stringify(requestBody, null, 2));
-
-		const res = await fetch(`${this.baseUrl}/api/chat`, {
-			method: 'POST',
-			headers: {
-				Authorization: `ApiKey ${this.apiKey}`,
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify(requestBody),
-		});
-
-		console.log('📡 Fusion API response status:', res.status, res.statusText);
-		console.log('📡 Response headers:', Object.fromEntries(res.headers.entries()));
-
-		if (!res.ok) {
-			const errorText = await res.text();
-			console.error('❌ Fusion API error response:', errorText);
-			console.error('❌ Request that failed:', JSON.stringify(requestBody, null, 2));
-			throw new Error(
-				`Fusion AI error: ${res.status} - ${errorText}`,
-			);
-		}
-
-		const data = (await res.json()) as any;
-		console.log('✅ Fusion API response data:', JSON.stringify(data, null, 2));
-
-		const text = data?.response?.text ?? data?.text ?? '';
-		console.log('🎯 Extracted response text:', text);
-
-		// Check if tools are provided in options and try to parse tool calls
-		const tools = (options as any)?.tools || [];
-		const hasTools = tools.length > 0;
-		let toolCalls: any[] = [];
-
-		if (hasTools) {
-			try {
-				// Check if the response contains a tool call
-				const jsonMatch = text.match(/\{[^}]*"tool_name"[^}]*\}/);
-				if (jsonMatch) {
-					const toolCall = JSON.parse(jsonMatch[0]);
-					toolCalls = [{
-						id: `call_${Date.now()}`,
-						type: 'function',
-						function: {
-							name: toolCall.tool_name,
-							arguments: JSON.stringify(toolCall.arguments || {})
-						}
-					}];
-					console.log('🔧 Tool call detected:', toolCalls);
-				}
-			} catch (e) {
-				console.warn('Failed to parse tool call from response:', e);
-			}
-		}
-
-		// Construct AIMessage with tool calling support
-		const aiMsg = new AIMessage({
-			content: text,
-			additional_kwargs: toolCalls.length > 0 ? { tool_calls: toolCalls } : {},
-			response_metadata: {
-				model: data?.model,
-				provider: data?.provider,
-				tokens: data?.tokens,
-				cost: data?.cost_charged_to_credits,
-			},
-		});
-
-		// Construct generation object (typed) with LangChain identifiers
-		const generation: ChatGeneration = {
-			text,
-			message: aiMsg,
-			generationInfo: {
-				model: data?.model,
-				provider: data?.provider,
-				tokens: data?.tokens,
-				cost: data?.cost_charged_to_credits,
-				tool_calls: toolCalls,
-			},
-		};
-
-		console.log('📤 Final ChatGeneration object:', JSON.stringify(generation, null, 2));
-
-		// Return full ChatResult
-		const chatResult = {
-			generations: [generation],
-			llmOutput: {
-				model: data?.model,
-				provider: data?.provider,
-				tokens: data?.tokens,
-				cost: data?.cost_charged_to_credits,
-			},
-		};
-
-		console.log('📋 Returning ChatResult:', JSON.stringify(chatResult, null, 2));
-		return chatResult;
-	}
+    return {
+      generations: [generation],
+      llmOutput: {
+        model: data?.model,
+        provider: data?.provider,
+        tokens: data?.tokens,
+        cost: data?.cost_charged_to_credits,
+      },
+    };
+  }
 }
 
 export class FusionChatModel implements INodeType {
-	description: INodeTypeDescription = {
-		displayName: 'Fusion Chat Model',
-		name: 'fusionChatModel',
-		icon: 'file:fusion.svg',
-		group: ['transform'],
-		version: 1,
-		subtitle: 'Language Model',
-		description: 'Chat model for Fusion AI (supports tools)',
-		defaults: { name: 'Fusion Chat Model' },
-		inputs: [],
-		outputs: ['ai_languageModel'],
-		credentials: [{ name: 'fusionApi', required: true }],
-		codex: {
-			categories: ['AI', 'Language Models'],
-			resources: {
-				primaryDocumentation: [
-					{ url: 'https://api.mcp4.ai/api-docs/' },
-				],
-			},
-		},
-		properties: [
-			{
-				displayName: 'Model',
-				name: 'model',
-				type: 'options',
-				typeOptions: {
-					loadOptionsMethod: 'getModels',
-				},
-				default: 'neuroswitch',
-				description: 'Model to use for the chat completion',
-			},
-			{
-				displayName: 'Options',
-				name: 'options',
-				placeholder: 'Add Option',
-				description: 'Additional options to configure',
-				type: 'collection',
-				default: {},
-				options: [
-					{
-						displayName: 'Temperature',
-						name: 'temperature',
-						default: 0.3,
-						typeOptions: {
-							maxValue: 1,
-							minValue: 0,
-							numberPrecision: 1
-						},
-						description: 'Controls randomness in the response. Lower values make responses more focused and deterministic.',
-						type: 'number',
-					},
-					{
-						displayName: 'Max Tokens',
-						name: 'maxTokens',
-						default: 1024,
-						typeOptions: {
-							maxValue: 4096,
-							minValue: 1
-						},
-						description: 'The maximum number of tokens to generate in the chat completion',
-						type: 'number',
-					},
-					{
-						displayName: 'Top P',
-						name: 'topP',
-						default: 1,
-						typeOptions: {
-							maxValue: 1,
-							minValue: 0,
-							numberPrecision: 1
-						},
-						description: 'An alternative to sampling with temperature, called nucleus sampling',
-						type: 'number',
-					},
-					{
-						displayName: 'Frequency Penalty',
-						name: 'frequencyPenalty',
-						default: 0,
-						typeOptions: {
-							maxValue: 2,
-							minValue: -2,
-							numberPrecision: 1
-						},
-						description: 'Positive values penalize new tokens based on their existing frequency in the text',
-						type: 'number',
-					},
-					{
-						displayName: 'Presence Penalty',
-						name: 'presencePenalty',
-						default: 0,
-						typeOptions: {
-							maxValue: 2,
-							minValue: -2,
-							numberPrecision: 1
-						},
-						description: 'Positive values penalize new tokens based on whether they appear in the text so far',
-						type: 'number',
-					},
-				],
-			},
-		],
-	};
+  description: INodeTypeDescription = {
+    displayName: 'Fusion Chat Model',
+    name: 'fusionChatModel',
+    icon: 'file:fusion.svg',
+    group: ['transform'],
+    version: 1,
+    subtitle: 'Language Model',
+    description: 'Chat model for Fusion AI (supports tools)',
+    defaults: { name: 'Fusion Chat Model' },
+    inputs: [],
+    outputs: [NodeConnectionTypes.AiLanguageModel],
+    outputNames: ['Model'],
+    credentials: [{ name: 'fusionApi', required: true }],
+    properties: [
+      { displayName: 'Model', name: 'model', type: 'string', default: 'neuroswitch' },
+      {
+        displayName: 'Options',
+        name: 'options',
+        type: 'collection',
+        default: {},
+        options: [
+          { displayName: 'Temperature', name: 'temperature', type: 'number', default: 0.3 },
+          { displayName: 'Max Tokens', name: 'maxTokens', type: 'number', default: 1024 },
+        ],
+      },
+    ],
+  };
 
-	methods = {
-		loadOptions: {
-			async getModels(this: ILoadOptionsFunctions) {
-				try {
-					const credentials = await this.getCredentials('fusionApi');
-					const baseUrl = (credentials.baseUrl as string)?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
+  async supplyData(this: any, itemIndex: number) {
+    const credentials = await this.getCredentials('fusionApi');
+    const baseUrl = credentials.baseUrl ?? credentials.url ?? 'https://api.mcp4.ai';
+    const apiKey = credentials.apiKey;
 
-					const response = await this.helpers.httpRequest({
-						method: 'GET',
-						url: `${baseUrl}/api/models`,
-						headers: {
-							Authorization: `ApiKey ${credentials.apiKey}`,
-							'Content-Type': 'application/json',
-						},
-					});
+    const model = this.getNodeParameter('model', itemIndex) as string;
+    const options = this.getNodeParameter('options', itemIndex, {});
 
-					const models = (response.data || response || []) as any[];
-					return models.map((model: any) => ({
-						name: `${model.name || model.id_string} ($${model.input_cost_per_million_tokens || 'N/A'}/1M)`,
-						value: model.id_string || model.id,
-					}));
-				} catch (error: any) {
-					console.warn('Failed to load Fusion models:', error.message);
-					return [
-						{ name: 'NeuroSwitch', value: 'neuroswitch' },
-						{ name: 'OpenAI GPT-4', value: 'openai/gpt-4' },
-						{ name: 'Anthropic Claude', value: 'anthropic/claude-3-sonnet' },
-						{ name: 'Google Gemini', value: 'google/gemini-pro' },
-					];
-				}
-			},
-		},
-	};
+    const fusionModel = new FusionLangChainChat({ model, options, apiKey, baseUrl });
 
-	async supplyData(
-		this: ISupplyDataFunctions,
-		itemIndex: number,
-	): Promise<SupplyData> {
-		const credentials = await this.getCredentials('fusionApi');
-		const baseUrl = (credentials.baseUrl as string)?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
-		const model = this.getNodeParameter('model', itemIndex) as string;
-		const options = this.getNodeParameter('options', itemIndex) as {
-			temperature?: number;
-			maxTokens?: number;
-			topP?: number;
-			frequencyPenalty?: number;
-			presencePenalty?: number;
-		};
-
-		console.log('🔧 supplyData called with model:', model, 'options:', options);
-
-		const fusionModel = new FusionLangChainChat({
-			apiKey: String(credentials.apiKey),
-			baseUrl,
-			provider: model || 'neuroswitch',
-			temperature: options.temperature ?? 0.3,
-			maxTokens: options.maxTokens ?? 1024,
-		});
-
-		console.log('✅ Created FusionLangChainChat model with tool calling support');
-
-		// The AI Agent expects a LangChain ChatModel instance here
-		return { response: fusionModel };
-	}
+    return { response: fusionModel };
+  }
 }
