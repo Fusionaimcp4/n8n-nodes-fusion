@@ -234,14 +234,40 @@ export class Fusion implements INodeType {
 					});
 
 				} else if (operation === 'getAccount') {
-					responseData = await this.helpers.httpRequest({
-						method: 'GET',
-						url: `${baseUrl}/api/account`,
-						headers: {
-							Authorization: `ApiKey ${credentials.apiKey}`,
-							'Content-Type': 'application/json',
-						},
-					});
+					// Try different possible account endpoints
+					const possibleEndpoints = [
+						'/api/user',
+						'/api/user/profile', 
+						'/api/me',
+						'/api/account',
+						'/api/user/account'
+					];
+					
+					let lastError: any = null;
+					
+					for (const endpoint of possibleEndpoints) {
+						try {
+							responseData = await this.helpers.httpRequest({
+								method: 'GET',
+								url: `${baseUrl}${endpoint}`,
+								headers: {
+									Authorization: `ApiKey ${credentials.apiKey}`,
+									'Content-Type': 'application/json',
+								},
+							});
+							// If successful, break out of the loop
+							break;
+						} catch (error: any) {
+							lastError = error;
+							// Continue to next endpoint
+							continue;
+						}
+					}
+					
+					// If all endpoints failed, throw the last error
+					if (!responseData) {
+						throw lastError || new Error('All account endpoints returned 404. Please check Fusion API documentation for the correct account endpoint.');
+					}
 				}
 
 				returnData.push({
