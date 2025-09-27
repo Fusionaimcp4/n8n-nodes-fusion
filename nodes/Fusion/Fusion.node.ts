@@ -60,9 +60,12 @@ export class Fusion implements INodeType {
 				displayName: 'Model',
 				name: 'model',
 				type: 'options',
-				typeOptions: {
-					loadOptionsMethod: 'getModels',
-				},
+				options: [
+					{ name: 'NeuroSwitch (auto routing)', value: 'neuroswitch' },
+					{ name: 'OpenAI: GPT-4', value: 'openai:gpt-4' },
+					{ name: 'Anthropic: Claude 3 Sonnet', value: 'anthropic:claude-3-sonnet' },
+					{ name: 'Google: Gemini Pro', value: 'google:gemini-pro' },
+				],
 				default: 'neuroswitch',
 				description: 'The AI model to use for chat completion',
 			},
@@ -157,49 +160,6 @@ export class Fusion implements INodeType {
 		],
 	};
 
-	methods = {
-		loadOptions: {
-			async getModels(this: ILoadOptionsFunctions) {
-				try {
-					const credentials = await this.getCredentials('fusionApi');
-					const baseUrl = (credentials.baseUrl as string)?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
-					
-					const response = await this.helpers.httpRequest({
-						method: 'GET',
-						url: `${baseUrl}/api/models`,
-						headers: {
-							Authorization: `ApiKey ${credentials.apiKey}`,
-							'Content-Type': 'application/json',
-						},
-					});
-					
-					const models = (response.data || response || []) as any[];
-					const modelOptions = models
-						.filter((m: any) => m.is_active)
-						.map((m: any) => ({
-							name: `${m.provider}: ${m.name}`,
-							value: `${m.provider}:${m.id_string}`,  // e.g. "openai:gpt-4o-mini"
-						}));
-
-					// Always include NeuroSwitch as the first option
-					modelOptions.unshift({
-						name: 'NeuroSwitch (auto routing)',
-						value: 'neuroswitch'
-					});
-
-					return modelOptions;
-				} catch (error: any) {
-					console.warn('Failed to load Fusion models:', error.message);
-					return [
-						{ name: 'NeuroSwitch (auto routing)', value: 'neuroswitch' },
-						{ name: 'OpenAI: GPT-4', value: 'openai:gpt-4' },
-						{ name: 'Anthropic: Claude 3 Sonnet', value: 'anthropic:claude-3-sonnet' },
-						{ name: 'Google: Gemini Pro', value: 'google:gemini-pro' },
-					];
-				}
-			},
-		},
-	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
