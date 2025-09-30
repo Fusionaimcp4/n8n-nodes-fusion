@@ -10,6 +10,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   private apiKey: string;
   private baseUrl: string;
   private _boundTools?: any[];
+  private httpRequest: any;
 
   public supportsToolCalling = true;
   get _supportsToolCalling(): boolean { return true; }
@@ -21,12 +22,13 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     return this;
   }
 
-  constructor(args: { model: string; options: any; apiKey: string; baseUrl: string }) {
+  constructor(args: { model: string; options: any; apiKey: string; baseUrl: string; httpRequest: any }) {
     super({});
     this.model = args.model;
     this.options = args.options;
     this.apiKey = args.apiKey;
     this.baseUrl = args.baseUrl;
+    this.httpRequest = args.httpRequest;
   }
 
   _llmType() { return 'fusion'; }
@@ -67,16 +69,15 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       body.model = modelId;
     }
 
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
+    const res = await this.httpRequest({
       method: 'POST',
+      url: `${this.baseUrl}/api/chat`,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `ApiKey ${this.apiKey}`,
       },
-      body: JSON.stringify(body),
+      body: body,
     });
-
-    if (!res.ok) throw new Error(`Fusion API error: ${res.status} ${res.statusText}`);
 
     type Tokens = {
       input_tokens?: number;
@@ -94,7 +95,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       cost_charged_to_credits?: number;
     }
 
-    const data = (await res.json()) as FusionResponse;
+    const data = res as FusionResponse;
     const text = data?.response?.text ?? '';
 
     const message = new AIMessage({
@@ -211,7 +212,7 @@ export class FusionChatModel implements INodeType {
     const model = this.getNodeParameter('model', itemIndex) as string;
     const options = this.getNodeParameter('options', itemIndex, {});
 
-    const fusionModel = new FusionLangChainChat({ model, options, apiKey, baseUrl });
+    const fusionModel = new FusionLangChainChat({ model, options, apiKey, baseUrl, httpRequest: this.helpers.httpRequest });
 
     return { response: fusionModel };
   }

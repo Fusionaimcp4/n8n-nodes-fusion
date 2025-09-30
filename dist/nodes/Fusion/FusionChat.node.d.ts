@@ -5,7 +5,7 @@ export declare class FusionChat implements INodeType {
         loadOptions: {
             getModels(this: ILoadOptionsFunctions): Promise<{
                 name: string;
-                value: any;
+                value: string;
             }[]>;
         };
     };

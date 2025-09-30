@@ -10,6 +10,8 @@ export class FusionApi implements ICredentialType {
 
 	documentationUrl = 'https://api.mcp4.ai/api-docs/';
 
+	noData = true;
+
 	properties: INodeProperties[] = [
 		{
 			displayName: 'API Key',

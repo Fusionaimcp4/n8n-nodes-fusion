@@ -1,248 +1,114 @@
-# n8n-nodes-fusion
+# Fusion AI Node for n8n
 
-An n8n community node that integrates **Fusion AI** (NeuroSwitch multi-provider orchestration) as a Language Model provider in n8n workflows.
+A production-ready n8n community node package that provides seamless integration with Fusion AI's NeuroSwitch multi-provider orchestration platform.
 
-![Fusion AI](https://img.shields.io/badge/Fusion%20AI-NeuroSwitch-blue) ![n8n](https://img.shields.io/badge/n8n-Community%20Node-orange) ![MIT License](https://img.shields.io/badge/License-MIT-green)
+## 🚀 Features
 
-## 🚀 What is Fusion AI?
-
-Fusion AI provides a unified API to access multiple AI providers (OpenAI, Anthropic Claude, Google Gemini) through NeuroSwitch orchestration. This node brings that power directly into your n8n workflows as a native Language Model provider.
-
-## ✨ Features
-
-- **🤖 Multi-Provider Access**: OpenAI, Claude, Gemini through single interface
-- **🔗 AI Agent Compatible**: Works seamlessly with n8n's AI Agent workflows  
-- **⚙️ Full Parameter Control**: Temperature, tokens, penalties, and more
-- **🔄 Dynamic Model Loading**: Automatically fetches available models from API
-- **🛡️ Secure Authentication**: API key-based authentication with masked inputs
+- **Multi-Provider AI Access**: Connect to OpenAI, Anthropic, Google, and other AI providers through a single unified interface
+- **NeuroSwitch Auto-Routing**: Intelligent automatic provider selection based on availability and performance
+- **LangChain Integration**: Full compatibility with n8n's AI Agent workflows and tool calling
+- **Secure Credentials**: API keys are stored securely with `noData: true` protection
+- **Production Ready**: Built with TypeScript, strict type checking, and comprehensive error handling
 
 ## 📦 Installation
 
-### Option 1: NPM Install (Recommended)
-
+### From npm (Recommended)
 ```bash
-npm install n8n-nodes-fusion
+npm install fusion-node
 ```
 
-### Option 2: Manual Installation
+### From Source
+```bash
+git clone https://github.com/Fusionaimcp4/n8n-nodes-fusion.git
+cd n8n-nodes-fusion
+npm install
+npm run build
+```
 
-1. **Download or clone this repository**
-2. **Install dependencies and build**:
-   ```bash
-   npm install
-   npm run build
-   ```
-
-3. **Copy to n8n custom nodes directory**:
-   ```bash
-   # Linux/Mac
-   cp -r dist/* ~/.n8n/custom/
-
-   # Windows
-   copy dist\* %USERPROFILE%\.n8n\custom\
-   ```
-
-4. **Set environment variable** (if needed):
-   ```bash
-   export N8N_CUSTOM_EXTENSIONS=~/.n8n/custom
-   ```
-
-5. **Restart n8n**
+### In n8n
+1. Install the package in your n8n instance
+2. Restart n8n
+3. The Fusion AI nodes will appear in the node palette
 
 ## 🔧 Setup
 
-### 1. Get Your Fusion AI API Key
-
-1. Sign up at [Fusion AI](https://fusion.mcp4.ai)
-2. Navigate to API settings
-3. Generate a new API key (format: `sk-fusion-xxx...`)
+### 1. Get Your Fusion API Key
+1. Visit [Fusion AI Platform](https://api.mcp4.ai)
+2. Sign up for an account
+3. Generate your API key from the dashboard
 
 ### 2. Configure Credentials in n8n
-
-1. Go to **Settings** → **Credentials**
-2. Click **+ Add Credential**
-3. Search for **"Fusion API"**
-4. Enter your details:
-   - **API Key**: `sk-fusion-your-key-here`
-   - **Base URL**: `https://api.mcp4.ai` (default)
-5. Click **Test** to verify connection
-6. **Save** the credential
+1. In n8n, go to **Credentials** → **Add Credential**
+2. Search for **Fusion API**
+3. Enter your API key
+4. Optionally customize the base URL (default: `https://api.mcp4.ai`)
+5. Test the connection
 
 ## 🎯 Usage
 
-### Two Node Types Available
+### Fusion Chat Model Node (AI Agent Integration)
 
-**1. Fusion AI Node (Regular Chat) - ✅ RECOMMENDED**
-- Direct API calls with full control
-- Multiple operations: Chat, Models, Account
-- Perfect for building custom workflows
-- **Guaranteed to work in all n8n versions**
+The primary node for AI Agent workflows:
 
-**2. Fusion Chat Model (AI Language Model Provider) - ⚠️ EXPERIMENTAL**
-- Intended for "Language Models" panel
-- May not connect to AI Agent due to n8n limitations
-- Use Fusion AI node as alternative
+1. **Add Node**: Drag "Fusion Chat Model" from the node palette
+2. **Select Model**: Choose from available providers:
+   - NeuroSwitch (auto routing) - Recommended
+   - OpenAI: GPT-4, GPT-3.5-turbo
+   - Anthropic: Claude 3 Sonnet, Claude 3 Haiku
+   - Google: Gemini Pro, Gemini Pro Vision
+3. **Configure Options**:
+   - Temperature: 0.0-1.0 (default: 0.3)
+   - Max Tokens: 1-4096 (default: 1024)
+4. **Connect to AI Agent**: Use as a Language Model in AI Agent workflows
 
-### Adding Fusion AI Node to Workflows
-
-1. **Open n8n workflow editor**
-2. **Look for "Fusion AI" in the AI section**
-3. **Drag "Fusion AI"** into your workflow
-4. **Configure the node**:
-   - Select your Fusion API credentials
-   - Choose Resource (Chat/Models/Account)
-   - Choose Operation and configure parameters
-
-### Adding Fusion Chat Model for AI Agents
-
-1. **Open n8n workflow editor**
-2. **Look for "Language Models" in the left panel** 
-3. **Drag "Fusion Chat Model"** into your workflow
-4. **Configure the node**:
-   - Select your Fusion API credentials
-   - Choose a model (auto-loaded from API)
-   - Adjust parameters (temperature, max tokens, etc.)
-5. **Connect to AI Agent node**:
-   - The connection should show as **"Language Model"** type
-   - You should see the AI Agent accept the connection without errors
-
-> **💡 Note**: If the node appears as "CUSTOM.fusionChatModel" instead of in the Language Models panel, restart n8n after installation.
-
-### Available Models
-
-The node automatically loads available models from Fusion AI:
-- **NeuroSwitch** (default multi-provider)
-- **OpenAI GPT-4** variants
-- **Anthropic Claude** models  
-- **Google Gemini** models
-
-### Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| **Model** | Dropdown | `neuroswitch` | AI model to use |
-| **Temperature** | Number | `0.3` | Randomness (0.0-1.0) |
-| **Max Tokens** | Number | `1024` | Response length limit |
-| **Top P** | Number | `1.0` | Nucleus sampling |
-| **Frequency Penalty** | Number | `0.0` | Repetition penalty |
-| **Presence Penalty** | Number | `0.0` | Topic diversity |
-
-## 🔗 Workflow Examples
-
-> **💡 Tip**: Complete workflow JSON files are available in the `/examples` directory. Import them directly into n8n for quick testing!
-
-### Example 1: Direct AI Chat (Fusion AI Node)
+### Example AI Agent Workflow
 
 ```json
 {
   "nodes": [
     {
+      "name": "Fusion Chat Model",
+      "type": "fusionChatModel",
       "parameters": {
-        "resource": "chat",
-        "operation": "sendMessage",
         "model": "neuroswitch",
-        "message": "Explain quantum computing in simple terms",
-        "additionalFields": {
-          "temperature": 0.7
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 1024
         }
-      },
-      "type": "n8n-nodes-fusion.fusion",
-      "position": [240, 300],
-      "name": "Fusion AI"
+      }
+    },
+    {
+      "name": "AI Agent",
+      "type": "aiAgent",
+      "parameters": {
+        "languageModel": "={{ $('Fusion Chat Model').item.json.response }}"
+      }
     }
   ]
 }
 ```
 
-### Example 2: AI Agent Integration (Fusion Chat Model)
+## 🔒 Security
 
-```json
-{
-  "nodes": [
-    {
-      "parameters": {
-        "model": "neuroswitch",
-        "temperature": 0.7
-      },
-      "type": "n8n-nodes-fusion.fusionChatModel",
-      "position": [240, 300],
-      "name": "Fusion Chat Model"
-    },
-    {
-      "parameters": {
-        "message": "Explain quantum computing in simple terms"
-      },
-      "type": "@n8n/n8n-nodes-langchain.aiAgent",
-      "position": [460, 300],
-      "name": "AI Agent"
-    }
-  ],
-  "connections": {
-    "Fusion Chat Model": {
-      "ai_languageModel": [
-        ["AI Agent", "ai_languageModel"]
-      ]
-    }
-  }
-}
-```
+### Credential Protection
+- **API Keys**: Stored securely with `noData: true` protection
+- **No Data Persistence**: Credentials are not logged or stored in plain text
+- **Secure Transmission**: All API calls use HTTPS encryption
 
-### Example 3: Document Analysis with AI Agent
-
-```json
-{
-  "nodes": [
-    {
-      "parameters": {
-        "model": "anthropic/claude-3-sonnet",
-        "temperature": 0.2,
-        "maxTokens": 2048
-      },
-      "type": "n8n-nodes-fusion.fusionChatModel", 
-      "name": "Fusion Chat Model"
-    },
-    {
-      "parameters": {
-        "message": "Analyze this document and provide key insights: {{ $json.document }}"
-      },
-      "type": "@n8n/n8n-nodes-langchain.aiAgent",
-      "name": "Document Analyzer"
-    }
-  ]
-}
-```
-
-### Example 4: Model Comparison Workflow
-
-Test multiple AI providers with the same prompt to compare responses:
-
-**Features**:
-- Lists all available models
-- Checks account status and credits
-- Tests OpenAI GPT-4, Claude 3 Sonnet, and Gemini Pro
-- Compares responses, costs, and token usage
-
-**Import**: Use `/examples/model-comparison-workflow.json`
-
-### 📁 Available Example Files
-
-| File | Description | Use Case |
-|------|-------------|----------|
-| `direct-chat-workflow.json` | Simple chat with Fusion AI node | Direct API interaction |
-| `ai-agent-workflow.json` | Document analysis with AI Agent | Language Model integration |
-| `model-comparison-workflow.json` | Multi-provider comparison | Testing different models |
-
-**To Import**:
-1. Download the JSON file from `/examples` directory
-2. In n8n, go to **Workflows** → **Import from File**
-3. Select the JSON file and import
-4. Configure your Fusion API credentials
-5. Execute the workflow!
+### Best Practices
+1. **Environment Variables**: Use environment variables for API keys in production
+2. **Access Control**: Limit API key permissions to necessary scopes
+3. **Monitoring**: Monitor API usage and costs through Fusion AI dashboard
+4. **Rotation**: Regularly rotate API keys for enhanced security
 
 ## 🛠️ Development
 
-### Local Development
+### Prerequisites
+- Node.js >= 18.0.0
+- npm or yarn
+- TypeScript knowledge
 
+### Building from Source
 ```bash
 # Clone repository
 git clone https://github.com/Fusionaimcp4/n8n-nodes-fusion.git
@@ -251,142 +117,118 @@ cd n8n-nodes-fusion
 # Install dependencies
 npm install
 
-# Start development mode
-npm run dev
-
-# Build for production
+# Build the project
 npm run build
 
-# Lint code
+# Run linting
 npm run lint
+
+# Format code
+npm run format
 ```
 
 ### Project Structure
-
 ```
-n8n-nodes-fusion/
-├── credentials/
-│   └── FusionApi.credentials.ts    # API credentials definition
-├── nodes/
-│   └── Fusion/
-│       ├── FusionChatModel.node.ts # Main language model node
-│       ├── FusionChatModel.node.json # Node metadata
-│       └── fusion.svg              # Node icon
-├── dist/                           # Compiled output
-├── package.json                    # Project configuration
-├── tsconfig.json                   # TypeScript configuration
-└── index.js                        # Node exports
+├── dist/                    # Built files (production)
+├── nodes/Fusion/           # Source TypeScript files
+│   ├── FusionChatModel.node.ts    # Main AI Agent node
+│   ├── FusionApi.credentials.ts   # Credential configuration
+│   └── fusion.svg                # Node icon
+├── package.json           # Package configuration
+├── tsconfig.json         # TypeScript configuration
+└── README.md             # This file
 ```
 
-### Testing
+## 📊 Supported Models
 
-The credential test endpoint verifies connectivity:
+### OpenAI
+- GPT-4
+- GPT-4 Turbo
+- GPT-3.5-turbo
+- GPT-3.5-turbo-16k
+
+### Anthropic
+- Claude 3 Sonnet
+- Claude 3 Haiku
+- Claude 3 Opus
+
+### Google
+- Gemini Pro
+- Gemini Pro Vision
+
+### Auto-Routing (NeuroSwitch)
+- Automatically selects the best available provider
+- Handles failover and load balancing
+- Optimizes for cost and performance
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**"Invalid model ID" Error**
+- Ensure the model string format is correct: `provider:model_id`
+- Check that the model is active in your Fusion AI account
+
+**"Could not resolve parameter dependencies" Error**
+- This has been fixed in the latest version
+- Update to the latest package version
+
+**Connection Timeout**
+- Verify your API key is correct
+- Check your internet connection
+- Ensure the base URL is accessible
+
+### Debug Mode
+Enable debug logging in n8n to see detailed error messages:
 ```bash
-GET https://api.mcp4.ai/api/models
-Authorization: ApiKey sk-fusion-xxx...
+N8N_LOG_LEVEL=debug npm start
 ```
 
-Chat completions use:
-```bash
-POST https://api.mcp4.ai/api/chat
-Authorization: ApiKey sk-fusion-xxx...
-Content-Type: application/json
+## 📈 Performance
 
-{
-  "prompt": "Your message here",
-  "provider": "neuroswitch",
-  "model": "neuroswitch",
-  "temperature": 0.3,
-  "max_tokens": 1024
-}
-```
+### Optimization Tips
+1. **Use NeuroSwitch**: Automatic routing optimizes for speed and cost
+2. **Batch Requests**: Process multiple items in a single workflow execution
+3. **Cache Results**: Store frequently used responses
+4. **Monitor Usage**: Track token consumption and costs
 
-## 🚨 Troubleshooting
-
-### Node Not Appearing
-
-1. **Check installation**: Ensure files are in correct directory
-2. **Restart n8n**: Restart after installing custom nodes
-3. **Check environment**: Verify `N8N_CUSTOM_EXTENSIONS` if using custom path
-4. **Check logs**: Look for errors in n8n startup logs
-
-### Fusion Chat Model Not in Language Models Panel
-
-1. **Restart n8n**: Custom AI Language Model nodes require restart
-2. **Check node order**: Ensure `FusionChatModel.node.js` is listed first in package.json
-3. **Verify outputs**: Check that metadata shows `"outputs": ["ai_languageModel"]`
-4. **Check file structure**: Ensure all files in `dist/nodes/Fusion/` are present
-
-### Tools Agent Connection Issues
-
-**Current Status**: Tools Agent may not recognize custom AI Language Model nodes in all n8n versions.
-
-**Troubleshooting Steps**:
-
-1. **Try Regular AI Agent First**: 
-   - Use "AI Agent" node (not "Tools Agent")
-   - Connect your Fusion Chat Model
-   - This should work with our supplyData() implementation
-
-2. **Use FusionChat Node (NEW)**:
-   - Try the new "Fusion Chat" node (OpenRouter-style)
-   - This bypasses AI Language Model restrictions
-   - Direct chat implementation that works universally
-
-3. **Check n8n Version**:
-   - Tools Agent support for custom nodes varies by version
-   - Some versions have stricter validation
-   - Consider updating n8n if using older version
-
-4. **Manual Workflow Approach**:
-   - Use HTTP Request node for direct API control
-   - Format: `POST https://api.mcp4.ai/api/chat`
-   - Headers: `Authorization: ApiKey your-key`
-   - Body: `{"prompt": "your message", "provider": "neuroswitch"}`
-
-**If Connection Still Fails**:
-1. **Restart n8n completely** after installing the node
-2. **Clear browser cache** and refresh
-3. **Try different n8n version** if possible
-4. **Use FusionChat node** as proven alternative
-
-### Authentication Errors
-
-1. **Verify API key**: Ensure key starts with `sk-fusion-`
-2. **Check permissions**: Ensure key has appropriate access
-3. **Test endpoint**: Use credential test feature in n8n
-4. **Check base URL**: Ensure using `https://api.mcp4.ai`
-
-### Model Loading Issues
-
-If models don't load, the node falls back to:
-- NeuroSwitch
-- OpenAI GPT-4  
-- Anthropic Claude
-- Google Gemini
-
-## 📖 API Documentation
-
-For complete API documentation, visit: [Fusion AI API Docs](https://api.mcp4.ai/api-docs/)
+### Rate Limits
+- Fusion AI handles rate limiting automatically
+- NeuroSwitch provides intelligent queuing
+- Respect individual provider rate limits
 
 ## 🤝 Contributing
 
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+### Development Setup
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE.txt) file for details.
+This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.txt) file for details.
 
-## 🙏 Acknowledgments
+## 🆘 Support
 
-- [n8n](https://n8n.io/) for the amazing workflow automation platform
-- [Fusion AI](https://fusion.mcp4.ai) for the powerful multi-provider AI orchestration
-- The n8n community for inspiration and support
+- **Documentation**: [Fusion AI API Docs](https://api.mcp4.ai/api-docs/)
+- **Issues**: [GitHub Issues](https://github.com/Fusionaimcp4/n8n-nodes-fusion/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Fusionaimcp4/n8n-nodes-fusion/discussions)
+- **Email**: support@mcp4.ai
+
+## 🔄 Changelog
+
+### v0.1.0
+- Initial release
+- Fusion Chat Model node for AI Agent integration
+- Multi-provider support (OpenAI, Anthropic, Google)
+- NeuroSwitch auto-routing
+- Secure credential handling
+- Production-ready build system
 
 ---
 
-**Made with ❤️ for the n8n community**
+**Made with ❤️ by the Fusion AI team**

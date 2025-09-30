@@ -6,6 +6,7 @@ class FusionApi {
         this.name = 'fusionApi';
         this.displayName = 'Fusion API';
         this.documentationUrl = 'https://api.mcp4.ai/api-docs/';
+        this.noData = true;
         this.properties = [
             {
                 displayName: 'API Key',

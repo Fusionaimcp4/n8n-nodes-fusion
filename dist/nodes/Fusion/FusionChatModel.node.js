@@ -1,167 +1,97 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FusionChatModel = void 0;
-const messages_1 = require("@langchain/core/messages");
+const n8n_workflow_1 = require("n8n-workflow");
 const chat_models_1 = require("@langchain/core/language_models/chat_models");
-/**
- * Fusion LangChain chat wrapper with tool calling support
- */
+const messages_1 = require("@langchain/core/messages");
+// Fusion LangChain chat model with tool-calling surface restored
 class FusionLangChainChat extends chat_models_1.BaseChatModel {
-    constructor(opts) {
-        super({});
-        this.apiKey = opts.apiKey;
-        this.baseUrl = opts.baseUrl.replace(/\/+$/, '');
-        this.provider = opts.provider || 'neuroswitch';
-        this.temperature = opts.temperature ?? 0.3;
-        this.maxTokens = opts.maxTokens ?? 1024;
-    }
-    _llmType() {
-        return 'fusion';
-    }
-    /** Tool calling support property */
-    get supportsToolCalling() {
-        console.log('🔍 n8n checking supportsToolCalling - returning true');
-        return true;
-    }
-    /** Alternative tool calling property */
-    get _supportsToolCalling() {
-        console.log('🔍 n8n checking _supportsToolCalling - returning true');
-        return true;
-    }
-    /** Additional tool support properties */
-    get supportsToolChoice() {
-        return true;
-    }
-    get supportsStructuredOutput() {
-        return true;
-    }
-    /** Bind tools method required by n8n */
+    get _supportsToolCalling() { return true; }
+    get supportsToolChoice() { return true; }
+    get supportsStructuredOutput() { return true; }
     bindTools(tools) {
-        console.log('🔧 bindTools called with tools:', tools);
-        // Store tools for use in _generate
         this._boundTools = tools;
         return this;
     }
-    /** Enhanced invoke method that handles tool calls */
-    async invoke(input, options) {
-        console.log('🔍 invoke called with input type:', typeof input, 'value:', input);
-        // Get bound tools or tools from options
-        const tools = this._boundTools || options?.tools || [];
-        // Convert input to BaseMessage array
-        let messages = [];
-        if (typeof input === 'string') {
-            messages = [{ content: input, role: 'user' }];
-        }
-        else if (Array.isArray(input)) {
-            messages = input;
-        }
-        else if (input && input.content) {
-            messages = [input];
-        }
-        // Add tools to options if available
-        const enhancedOptions = tools.length > 0 ? { ...options, tools } : options;
-        return this._generate(messages, enhancedOptions);
+    constructor(args) {
+        super({});
+        this.supportsToolCalling = true;
+        this.model = args.model;
+        this.options = args.options;
+        this.apiKey = args.apiKey;
+        this.baseUrl = args.baseUrl;
+        this.httpRequest = args.httpRequest;
     }
-    /** Convert LC messages -> plain prompt (simple join) */
-    messagesToPrompt(messages) {
-        const pick = (m) => {
-            const c = m?.content;
-            if (typeof c === 'string')
-                return c;
-            if (Array.isArray(c)) {
-                return c
-                    .map((p) => typeof p?.text === 'string' ? p.text : '')
-                    .join('\n');
-            }
-            return String(c ?? '');
+    _llmType() { return 'fusion'; }
+    async _generate(messages, _options) {
+        const roleOf = (m) => {
+            const t = m?._getType?.();
+            if (t === 'human')
+                return 'user';
+            if (t === 'ai')
+                return 'assistant';
+            if (t === 'system')
+                return 'system';
+            return t ?? 'user';
         };
-        return messages.map(pick).filter(Boolean).join('\n');
-    }
-    /** Core generation for LangChain with tool calling support */
-    async _generate(messages, options, _runManager) {
-        const prompt = this.messagesToPrompt(messages);
-        console.log('🔍 _generate called with prompt:', JSON.stringify(prompt));
-        console.log('🔗 API URL:', `${this.baseUrl}/api/chat`);
-        console.log('🔑 Authorization header:', `ApiKey ${String(this.apiKey).substring(0, 20)}...`);
-        // Use the EXACT same format as your working curl
-        const requestBody = {
+        const prompt = messages.map((m) => m.content).join('\n');
+        // Split provider / model from dropdown
+        let provider = 'neuroswitch';
+        let modelId = undefined;
+        if (this.model && this.model.includes(':')) {
+            [provider, modelId] = this.model.split(':');
+            // Remove provider prefix from modelId if it exists (e.g., "openai/gpt-4o-mini" -> "gpt-4o-mini")
+            if (modelId && modelId.includes('/')) {
+                modelId = modelId.split('/')[1];
+            }
+        }
+        else if (this.model) {
+            provider = this.model; // Handle legacy "neuroswitch" or other single values
+        }
+        const body = {
             prompt,
-            provider: this.provider,
-            temperature: this.temperature,
-            max_tokens: this.maxTokens
+            provider,
+            temperature: this.options?.temperature ?? 0.3,
+            max_tokens: this.options?.maxTokens ?? 1024,
         };
-        console.log('🚀 Fusion API request:', JSON.stringify(requestBody, null, 2));
-        const res = await fetch(`${this.baseUrl}/api/chat`, {
+        if (provider !== 'neuroswitch' && modelId) {
+            body.model = modelId;
+        }
+        const res = await this.httpRequest({
             method: 'POST',
+            url: `${this.baseUrl}/api/chat`,
             headers: {
-                Authorization: `ApiKey ${this.apiKey}`,
                 'Content-Type': 'application/json',
+                Authorization: `ApiKey ${this.apiKey}`,
             },
-            body: JSON.stringify(requestBody),
+            body: body,
         });
-        console.log('📡 Fusion API response status:', res.status, res.statusText);
-        console.log('📡 Response headers:', Object.fromEntries(res.headers.entries()));
-        if (!res.ok) {
-            const errorText = await res.text();
-            console.error('❌ Fusion API error response:', errorText);
-            console.error('❌ Request that failed:', JSON.stringify(requestBody, null, 2));
-            throw new Error(`Fusion AI error: ${res.status} - ${errorText}`);
-        }
-        const data = (await res.json());
-        console.log('✅ Fusion API response data:', JSON.stringify(data, null, 2));
-        const text = data?.response?.text ?? data?.text ?? '';
-        console.log('🎯 Extracted response text:', text);
-        // Check if tools are provided in options and try to parse tool calls
-        const tools = options?.tools || [];
-        const hasTools = tools.length > 0;
-        let toolCalls = [];
-        if (hasTools) {
-            try {
-                // Check if the response contains a tool call
-                const jsonMatch = text.match(/\{[^}]*"tool_name"[^}]*\}/);
-                if (jsonMatch) {
-                    const toolCall = JSON.parse(jsonMatch[0]);
-                    toolCalls = [{
-                            id: `call_${Date.now()}`,
-                            type: 'function',
-                            function: {
-                                name: toolCall.tool_name,
-                                arguments: JSON.stringify(toolCall.arguments || {})
-                            }
-                        }];
-                    console.log('🔧 Tool call detected:', toolCalls);
-                }
-            }
-            catch (e) {
-                console.warn('Failed to parse tool call from response:', e);
-            }
-        }
-        // Construct AIMessage with tool calling support
-        const aiMsg = new messages_1.AIMessage({
+        const data = res;
+        const text = data?.response?.text ?? '';
+        const message = new messages_1.AIMessage({
             content: text,
-            additional_kwargs: toolCalls.length > 0 ? { tool_calls: toolCalls } : {},
+            additional_kwargs: {},
             response_metadata: {
                 model: data?.model,
                 provider: data?.provider,
                 tokens: data?.tokens,
                 cost: data?.cost_charged_to_credits,
             },
+            tool_calls: [],
+            invalid_tool_calls: [],
         });
-        // Construct generation object (typed) with LangChain identifiers
         const generation = {
             text,
-            message: aiMsg,
+            message,
             generationInfo: {
                 model: data?.model,
                 provider: data?.provider,
                 tokens: data?.tokens,
                 cost: data?.cost_charged_to_credits,
-                tool_calls: toolCalls,
+                tool_calls: [],
             },
         };
-        console.log('📤 Final ChatGeneration object:', JSON.stringify(generation, null, 2));
-        // Return full ChatResult
-        const chatResult = {
+        return {
             generations: [generation],
             llmOutput: {
                 model: data?.model,
@@ -170,8 +100,6 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                 cost: data?.cost_charged_to_credits,
             },
         };
-        console.log('📋 Returning ChatResult:', JSON.stringify(chatResult, null, 2));
-        return chatResult;
     }
 }
 class FusionChatModel {
@@ -186,16 +114,9 @@ class FusionChatModel {
             description: 'Chat model for Fusion AI (supports tools)',
             defaults: { name: 'Fusion Chat Model' },
             inputs: [],
-            outputs: ['ai_languageModel'],
+            outputs: [n8n_workflow_1.NodeConnectionTypes.AiLanguageModel],
+            outputNames: ['Model'],
             credentials: [{ name: 'fusionApi', required: true }],
-            codex: {
-                categories: ['AI', 'Language Models'],
-                resources: {
-                    primaryDocumentation: [
-                        { url: 'https://api.mcp4.ai/api-docs/' },
-                    ],
-                },
-            },
             properties: [
                 {
                     displayName: 'Model',
@@ -205,75 +126,16 @@ class FusionChatModel {
                         loadOptionsMethod: 'getModels',
                     },
                     default: 'neuroswitch',
-                    description: 'Model to use for the chat completion',
+                    description: 'Select which model/provider to use',
                 },
                 {
                     displayName: 'Options',
                     name: 'options',
-                    placeholder: 'Add Option',
-                    description: 'Additional options to configure',
                     type: 'collection',
                     default: {},
                     options: [
-                        {
-                            displayName: 'Temperature',
-                            name: 'temperature',
-                            default: 0.3,
-                            typeOptions: {
-                                maxValue: 1,
-                                minValue: 0,
-                                numberPrecision: 1
-                            },
-                            description: 'Controls randomness in the response. Lower values make responses more focused and deterministic.',
-                            type: 'number',
-                        },
-                        {
-                            displayName: 'Max Tokens',
-                            name: 'maxTokens',
-                            default: 1024,
-                            typeOptions: {
-                                maxValue: 4096,
-                                minValue: 1
-                            },
-                            description: 'The maximum number of tokens to generate in the chat completion',
-                            type: 'number',
-                        },
-                        {
-                            displayName: 'Top P',
-                            name: 'topP',
-                            default: 1,
-                            typeOptions: {
-                                maxValue: 1,
-                                minValue: 0,
-                                numberPrecision: 1
-                            },
-                            description: 'An alternative to sampling with temperature, called nucleus sampling',
-                            type: 'number',
-                        },
-                        {
-                            displayName: 'Frequency Penalty',
-                            name: 'frequencyPenalty',
-                            default: 0,
-                            typeOptions: {
-                                maxValue: 2,
-                                minValue: -2,
-                                numberPrecision: 1
-                            },
-                            description: 'Positive values penalize new tokens based on their existing frequency in the text',
-                            type: 'number',
-                        },
-                        {
-                            displayName: 'Presence Penalty',
-                            name: 'presencePenalty',
-                            default: 0,
-                            typeOptions: {
-                                maxValue: 2,
-                                minValue: -2,
-                                numberPrecision: 1
-                            },
-                            description: 'Positive values penalize new tokens based on whether they appear in the text so far',
-                            type: 'number',
-                        },
+                        { displayName: 'Temperature', name: 'temperature', type: 'number', default: 0.3 },
+                        { displayName: 'Max Tokens', name: 'maxTokens', type: 'number', default: 1024 },
                     ],
                 },
             ],
@@ -281,51 +143,37 @@ class FusionChatModel {
         this.methods = {
             loadOptions: {
                 async getModels() {
-                    try {
-                        const credentials = await this.getCredentials('fusionApi');
-                        const baseUrl = credentials.baseUrl?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
-                        const response = await this.helpers.httpRequest({
-                            method: 'GET',
-                            url: `${baseUrl}/api/models`,
-                            headers: {
-                                Authorization: `ApiKey ${credentials.apiKey}`,
-                                'Content-Type': 'application/json',
-                            },
-                        });
-                        const models = (response.data || response || []);
-                        return models.map((model) => ({
-                            name: `${model.name || model.id_string} ($${model.input_cost_per_million_tokens || 'N/A'}/1M)`,
-                            value: model.id_string || model.id,
-                        }));
-                    }
-                    catch (error) {
-                        console.warn('Failed to load Fusion models:', error.message);
-                        return [
-                            { name: 'NeuroSwitch', value: 'neuroswitch' },
-                            { name: 'OpenAI GPT-4', value: 'openai/gpt-4' },
-                            { name: 'Anthropic Claude', value: 'anthropic/claude-3-sonnet' },
-                            { name: 'Google Gemini', value: 'google/gemini-pro' },
-                        ];
-                    }
+                    const credentials = await this.getCredentials('fusionApi');
+                    const baseUrl = credentials.baseUrl ?? 'https://api.mcp4.ai';
+                    const res = await this.helpers.httpRequest({
+                        method: 'GET',
+                        url: `${baseUrl}/api/models`,
+                        headers: { Authorization: `ApiKey ${credentials.apiKey}` },
+                    });
+                    const models = (res.data || res);
+                    const modelOptions = models
+                        .filter((m) => m.is_active)
+                        .map((m) => ({
+                        name: `${m.provider}: ${m.name}`,
+                        value: `${m.provider}:${m.id_string}`, // e.g. "openai:gpt-4o-mini"
+                    }));
+                    // Always include NeuroSwitch as the first option
+                    modelOptions.unshift({
+                        name: 'NeuroSwitch (auto routing)',
+                        value: 'neuroswitch'
+                    });
+                    return modelOptions;
                 },
             },
         };
     }
     async supplyData(itemIndex) {
         const credentials = await this.getCredentials('fusionApi');
-        const baseUrl = credentials.baseUrl?.replace(/\/+$/, '') || 'https://api.mcp4.ai';
+        const baseUrl = credentials.baseUrl ?? credentials.url ?? 'https://api.mcp4.ai';
+        const apiKey = credentials.apiKey;
         const model = this.getNodeParameter('model', itemIndex);
-        const options = this.getNodeParameter('options', itemIndex);
-        console.log('🔧 supplyData called with model:', model, 'options:', options);
-        const fusionModel = new FusionLangChainChat({
-            apiKey: String(credentials.apiKey),
-            baseUrl,
-            provider: model || 'neuroswitch',
-            temperature: options.temperature ?? 0.3,
-            maxTokens: options.maxTokens ?? 1024,
-        });
-        console.log('✅ Created FusionLangChainChat model with tool calling support');
-        // The AI Agent expects a LangChain ChatModel instance here
+        const options = this.getNodeParameter('options', itemIndex, {});
+        const fusionModel = new FusionLangChainChat({ model, options, apiKey, baseUrl, httpRequest: this.helpers.httpRequest });
         return { response: fusionModel };
     }
 }

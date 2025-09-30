@@ -3,6 +3,7 @@ export declare class FusionApi implements ICredentialType {
     name: string;
     displayName: string;
     documentationUrl: string;
+    noData: boolean;
     properties: INodeProperties[];
     authenticate: {
         readonly type: "generic";
