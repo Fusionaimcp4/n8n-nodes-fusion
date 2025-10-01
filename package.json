@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-fusion",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "n8n community node for Fusion AI (NeuroSwitch multi-provider orchestration)",
   "keywords": [
     "n8n-community-node",
@@ -52,7 +52,8 @@
     ],
     "nodes": [
       "dist/nodes/Fusion/FusionChatModel.node.js",
-      "dist/nodes/Fusion/FusionChat.node.js"
+      "dist/nodes/Fusion/FusionChat.node.js",
+      "dist/nodes/Fusion/Fusion.node.js"
     ]
   },
   "dependencies": {
