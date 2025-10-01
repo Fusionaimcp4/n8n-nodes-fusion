@@ -213,25 +213,35 @@ export class Fusion implements INodeType {
 						requestBody.model = modelId;
 					}
 
-					responseData = await this.helpers.httpRequest({
-						method: 'POST',
-						url: `${baseUrl}/api/chat`,
-						headers: {
-							Authorization: `ApiKey ${credentials.apiKey}`,
-							'Content-Type': 'application/json',
-						},
-						body: requestBody,
-					});
+					try {
+						responseData = await this.helpers.httpRequest({
+							method: 'POST',
+							url: `${baseUrl}/api/chat`,
+							headers: {
+								Authorization: `ApiKey ${credentials.apiKey}`,
+								'Content-Type': 'application/json',
+							},
+							body: requestBody,
+						});
+					} catch (error: any) {
+						console.error('Fusion API chat request failed:', error.message);
+						throw new Error(`Fusion API chat request failed: ${error.message}`);
+					}
 
 				} else if (operation === 'listModels') {
-					responseData = await this.helpers.httpRequest({
-						method: 'GET',
-						url: `${baseUrl}/api/models`,
-						headers: {
-							Authorization: `ApiKey ${credentials.apiKey}`,
-							'Content-Type': 'application/json',
-						},
-					});
+					try {
+						responseData = await this.helpers.httpRequest({
+							method: 'GET',
+							url: `${baseUrl}/api/models`,
+							headers: {
+								Authorization: `ApiKey ${credentials.apiKey}`,
+								'Content-Type': 'application/json',
+							},
+						});
+					} catch (error: any) {
+						console.error('Fusion API models request failed:', error.message);
+						throw new Error(`Fusion API models request failed: ${error.message}`);
+					}
 
 				} else if (operation === 'getAccount') {
 					// Try different possible account endpoints
@@ -266,6 +276,7 @@ export class Fusion implements INodeType {
 					
 					// If all endpoints failed, throw the last error
 					if (!responseData) {
+						console.error('All Fusion API account endpoints failed:', lastError?.message || 'Unknown error');
 						throw lastError || new Error('All account endpoints returned 404. Please check Fusion API documentation for the correct account endpoint.');
 					}
 				}

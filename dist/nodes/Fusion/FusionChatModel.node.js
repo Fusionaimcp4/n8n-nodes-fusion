@@ -60,16 +60,26 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         if (provider !== 'neuroswitch' && modelId) {
             body.model = modelId;
         }
-        const res = await (0, node_fetch_1.default)(`${this.baseUrl}/api/chat`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `ApiKey ${this.apiKey}`,
-            },
-            body: JSON.stringify(body),
-        });
-        if (!res.ok)
-            throw new Error(`Fusion API error: ${res.status} ${res.statusText}`);
+        let res;
+        try {
+            res = await (0, node_fetch_1.default)(`${this.baseUrl}/api/chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `ApiKey ${this.apiKey}`,
+                },
+                body: JSON.stringify(body),
+            });
+        }
+        catch (error) {
+            console.error('Fusion API request failed:', error.message);
+            throw new Error(`Fusion API request failed: ${error.message}`);
+        }
+        if (!res.ok) {
+            const errorText = await res.text().catch(() => 'Unknown error');
+            console.error(`Fusion API error: ${res.status} ${res.statusText}`, errorText);
+            throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
+        }
         const data = (await res.json());
         const text = data?.response?.text ?? '';
         const message = new messages_1.AIMessage({
@@ -147,26 +157,38 @@ class FusionChatModel {
         this.methods = {
             loadOptions: {
                 async getModels() {
-                    const credentials = await this.getCredentials('fusionApi');
-                    const baseUrl = credentials.baseUrl ?? 'https://api.mcp4.ai';
-                    const res = await this.helpers.httpRequest({
-                        method: 'GET',
-                        url: `${baseUrl}/api/models`,
-                        headers: { Authorization: `ApiKey ${credentials.apiKey}` },
-                    });
-                    const models = (res.data || res);
-                    const modelOptions = models
-                        .filter((m) => m.is_active)
-                        .map((m) => ({
-                        name: `${m.provider}: ${m.name}`,
-                        value: `${m.provider}:${m.id_string}`, // e.g. "openai:gpt-4o-mini"
-                    }));
-                    // Always include NeuroSwitch as the first option
-                    modelOptions.unshift({
-                        name: 'NeuroSwitch (auto routing)',
-                        value: 'neuroswitch'
-                    });
-                    return modelOptions;
+                    try {
+                        const credentials = await this.getCredentials('fusionApi');
+                        const baseUrl = credentials.baseUrl ?? 'https://api.mcp4.ai';
+                        const res = await this.helpers.httpRequest({
+                            method: 'GET',
+                            url: `${baseUrl}/api/models`,
+                            headers: { Authorization: `ApiKey ${credentials.apiKey}` },
+                        });
+                        const models = (res.data || res);
+                        const modelOptions = models
+                            .filter((m) => m.is_active)
+                            .map((m) => ({
+                            name: `${m.provider}: ${m.name}`,
+                            value: `${m.provider}:${m.id_string}`, // e.g. "openai:gpt-4o-mini"
+                        }));
+                        // Always include NeuroSwitch as the first option
+                        modelOptions.unshift({
+                            name: 'NeuroSwitch (auto routing)',
+                            value: 'neuroswitch'
+                        });
+                        return modelOptions;
+                    }
+                    catch (error) {
+                        console.error('Failed to load Fusion models:', error.message);
+                        // Return fallback options
+                        return [
+                            { name: 'NeuroSwitch (auto routing)', value: 'neuroswitch' },
+                            { name: 'OpenAI: GPT-4', value: 'openai:gpt-4' },
+                            { name: 'Anthropic: Claude 3 Sonnet', value: 'anthropic:claude-3-sonnet' },
+                            { name: 'Google: Gemini Pro', value: 'google:gemini-pro' },
+                        ];
+                    }
                 },
             },
         };

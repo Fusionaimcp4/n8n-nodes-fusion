@@ -39,16 +39,62 @@ npm run build
 ## 🔧 Setup
 
 ### 1. Get Your Fusion API Key
-1. Visit [Fusion AI Platform](https://api.mcp4.ai)
+1. Visit [Fusion AI Platform](https://mcp4.ai)
 2. Sign up for an account
 3. Generate your API key from the dashboard
 
 ### 2. Configure Credentials in n8n
-1. In n8n, go to **Credentials** → **Add Credential**
-2. Search for **Fusion API**
-3. Enter your API key
-4. Optionally customize the base URL (default: `https://api.mcp4.ai`)
-5. Test the connection
+
+#### Step-by-Step Credential Setup:
+
+1. **Open n8n**: Navigate to your n8n instance
+2. **Go to Credentials**: Click on "Credentials" in the left sidebar
+3. **Add New Credential**: Click the "+" button or "Add Credential"
+4. **Search for Fusion**: Type "Fusion API" in the search box
+5. **Select Fusion API**: Click on "Fusion API" from the results
+6. **Enter Your Details**:
+   - **API Key**: Paste your Fusion AI API key
+   - **Base URL**: Leave as default (`https://api.mcp4.ai`) or enter custom URL
+7. **Test Connection**: Click "Test" to verify your credentials work
+8. **Save**: Click "Save" to store your credentials
+9. **Name Your Credential**: Give it a descriptive name like "Fusion AI Production"
+
+#### Credential Fields Explained:
+
+- **API Key** (Required): Your Fusion AI API key for authentication
+  - Get this from your Fusion AI dashboard
+  - Keep this secure and never share it publicly
+  - The field is password-protected for security
+
+- **Base URL** (Optional): The base URL for the Fusion AI API
+  - Default: `https://api.mcp4.ai`
+  - Only change if using a custom Fusion AI instance
+  - Must include the protocol (https://)
+
+#### Security Best Practices:
+
+- **Environment Variables**: In production, use environment variables for API keys
+- **Credential Naming**: Use descriptive names to identify different environments
+- **Access Control**: Limit API key permissions to necessary scopes only
+- **Regular Rotation**: Periodically rotate your API keys for enhanced security
+- **Monitoring**: Monitor API usage and costs through the Fusion AI dashboard
+
+#### Troubleshooting Credentials:
+
+**"Invalid API Key" Error**:
+- Verify the API key is correct and active
+- Check for extra spaces or characters
+- Ensure the API key hasn't expired
+
+**"Connection Failed" Error**:
+- Verify your internet connection
+- Check if the Base URL is correct
+- Ensure your firewall allows HTTPS connections to api.mcp4.ai
+
+**"Test Connection Failed"**:
+- Double-check your API key
+- Verify the Base URL is accessible
+- Check n8n logs for detailed error messages
 
 ## 🎯 Usage
 
@@ -233,7 +279,7 @@ This project is licensed under the MIT License - see the [LICENSE.txt](LICENSE.t
 
 ## 🔄 Changelog
 
-### v0.1.0
+### v0.1.4
 - Initial release
 - Fusion Chat Model node for AI Agent integration
 - Multi-provider support (OpenAI, Anthropic, Google)

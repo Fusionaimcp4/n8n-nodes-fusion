@@ -68,16 +68,26 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       body.model = modelId;
     }
 
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `ApiKey ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
+    let res: any;
+    try {
+      res = await fetch(`${this.baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `ApiKey ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (error: any) {
+      console.error('Fusion API request failed:', error.message);
+      throw new Error(`Fusion API request failed: ${error.message}`);
+    }
 
-    if (!res.ok) throw new Error(`Fusion API error: ${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => 'Unknown error');
+      console.error(`Fusion API error: ${res.status} ${res.statusText}`, errorText);
+      throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
+    }
 
     type Tokens = {
       input_tokens?: number;
@@ -176,30 +186,41 @@ export class FusionChatModel implements INodeType {
   methods = {
     loadOptions: {
       async getModels(this: ILoadOptionsFunctions) {
-        const credentials = await this.getCredentials('fusionApi');
-        const baseUrl = credentials.baseUrl ?? 'https://api.mcp4.ai';
+        try {
+          const credentials = await this.getCredentials('fusionApi');
+          const baseUrl = credentials.baseUrl ?? 'https://api.mcp4.ai';
 
-        const res = await this.helpers.httpRequest({
-          method: 'GET',
-          url: `${baseUrl}/api/models`,
-          headers: { Authorization: `ApiKey ${credentials.apiKey}` },
-        });
+          const res = await this.helpers.httpRequest({
+            method: 'GET',
+            url: `${baseUrl}/api/models`,
+            headers: { Authorization: `ApiKey ${credentials.apiKey}` },
+          });
 
-        const models = (res.data || res) as any[];
-        const modelOptions = models
-          .filter((m: any) => m.is_active)
-          .map((m: any) => ({
-            name: `${m.provider}: ${m.name}`,
-            value: `${m.provider}:${m.id_string}`,  // e.g. "openai:gpt-4o-mini"
-          }));
+          const models = (res.data || res) as any[];
+          const modelOptions = models
+            .filter((m: any) => m.is_active)
+            .map((m: any) => ({
+              name: `${m.provider}: ${m.name}`,
+              value: `${m.provider}:${m.id_string}`,  // e.g. "openai:gpt-4o-mini"
+            }));
 
-        // Always include NeuroSwitch as the first option
-        modelOptions.unshift({
-          name: 'NeuroSwitch (auto routing)',
-          value: 'neuroswitch'
-        });
+          // Always include NeuroSwitch as the first option
+          modelOptions.unshift({
+            name: 'NeuroSwitch (auto routing)',
+            value: 'neuroswitch'
+          });
 
-        return modelOptions;
+          return modelOptions;
+        } catch (error: any) {
+          console.error('Failed to load Fusion models:', error.message);
+          // Return fallback options
+          return [
+            { name: 'NeuroSwitch (auto routing)', value: 'neuroswitch' },
+            { name: 'OpenAI: GPT-4', value: 'openai:gpt-4' },
+            { name: 'Anthropic: Claude 3 Sonnet', value: 'anthropic:claude-3-sonnet' },
+            { name: 'Google: Gemini Pro', value: 'google:gemini-pro' },
+          ];
+        }
       },
     },
   };

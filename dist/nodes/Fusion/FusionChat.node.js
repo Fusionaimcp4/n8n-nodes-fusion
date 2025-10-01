@@ -167,7 +167,8 @@ class FusionChat {
                         return modelOptions;
                     }
                     catch (error) {
-                        console.warn('Failed to load Fusion models:', error.message);
+                        console.error('Failed to load Fusion models:', error.message);
+                        // Return fallback options
                         return [
                             { name: 'NeuroSwitch (auto routing)', value: 'neuroswitch' },
                             { name: 'OpenAI: GPT-4', value: 'openai:gpt-4' },
@@ -220,15 +221,22 @@ class FusionChat {
                 if (provider !== 'neuroswitch' && modelId) {
                     requestBody.model = modelId;
                 }
-                const response = await this.helpers.httpRequest({
-                    method: 'POST',
-                    url: `${baseUrl}/api/chat`,
-                    headers: {
-                        Authorization: `ApiKey ${credentials.apiKey}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: requestBody,
-                });
+                let response;
+                try {
+                    response = await this.helpers.httpRequest({
+                        method: 'POST',
+                        url: `${baseUrl}/api/chat`,
+                        headers: {
+                            Authorization: `ApiKey ${credentials.apiKey}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: requestBody,
+                    });
+                }
+                catch (error) {
+                    console.error('Fusion API request failed:', error.message);
+                    throw new Error(`Fusion API request failed: ${error.message}`);
+                }
                 returnData.push({
                     json: response,
                     pairedItem: { item: i },
