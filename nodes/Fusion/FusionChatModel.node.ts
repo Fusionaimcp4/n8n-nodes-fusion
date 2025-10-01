@@ -17,10 +17,10 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   get supportsToolChoice(): boolean { return true; }
   get supportsStructuredOutput(): boolean { return true; }
 
-  override bindTools(tools: any[]): this {
+	override bindTools(tools: any[]): this {
     this._boundTools = tools;
-    return this;
-  }
+		return this;
+	}
 
   constructor(args: { model: string; options: any; apiKey: string; baseUrl: string; httpRequest: any }) {
     super({});
@@ -99,89 +99,89 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     const text = data?.response?.text ?? '';
 
     const message = new AIMessage({
-      content: text,
+			content: text,
       additional_kwargs: {},
-      response_metadata: {
-        model: data?.model,
-        provider: data?.provider,
-        tokens: data?.tokens,
-        cost: data?.cost_charged_to_credits,
-      },
+			response_metadata: {
+				model: data?.model,
+				provider: data?.provider,
+				tokens: data?.tokens,
+				cost: data?.cost_charged_to_credits,
+			},
       tool_calls: [],
       invalid_tool_calls: [],
-    });
+		});
 
-    const generation: ChatGeneration = {
-      text,
+		const generation: ChatGeneration = {
+			text,
       message,
-      generationInfo: {
-        model: data?.model,
-        provider: data?.provider,
-        tokens: data?.tokens,
-        cost: data?.cost_charged_to_credits,
+			generationInfo: {
+				model: data?.model,
+				provider: data?.provider,
+				tokens: data?.tokens,
+				cost: data?.cost_charged_to_credits,
         tool_calls: [],
-      },
-    };
+			},
+		};
 
     return {
-      generations: [generation],
-      llmOutput: {
-        model: data?.model,
-        provider: data?.provider,
-        tokens: data?.tokens,
-        cost: data?.cost_charged_to_credits,
-      },
-    };
-  }
+			generations: [generation],
+			llmOutput: {
+				model: data?.model,
+				provider: data?.provider,
+				tokens: data?.tokens,
+				cost: data?.cost_charged_to_credits,
+			},
+		};
+	}
 }
 
 export class FusionChatModel implements INodeType {
-  description: INodeTypeDescription = {
-    displayName: 'Fusion Chat Model',
-    name: 'fusionChatModel',
-    icon: 'file:fusion.svg',
-    group: ['transform'],
-    version: 1,
-    subtitle: 'Language Model',
-    description: 'Chat model for Fusion AI (supports tools)',
-    defaults: { name: 'Fusion Chat Model' },
-    inputs: [],
+	description: INodeTypeDescription = {
+		displayName: 'Fusion Chat Model',
+		name: 'fusionChatModel',
+		icon: 'file:fusion.svg',
+		group: ['transform'],
+		version: 1,
+		subtitle: 'Language Model',
+		description: 'Chat model for Fusion AI (supports tools)',
+		defaults: { name: 'Fusion Chat Model' },
+		inputs: [],
     outputs: [NodeConnectionTypes.AiLanguageModel],
     outputNames: ['Model'],
-    credentials: [{ name: 'fusionApi', required: true }],
-    properties: [
-      {
-        displayName: 'Model',
-        name: 'model',
-        type: 'options',
-        typeOptions: {
-          loadOptionsMethod: 'getModels',
-        },
-        default: 'neuroswitch',
+		credentials: [{ name: 'fusionApi', required: true }],
+		properties: [
+			{
+				displayName: 'Model',
+				name: 'model',
+				type: 'options',
+				typeOptions: {
+					loadOptionsMethod: 'getModels',
+				},
+				default: 'neuroswitch',
         description: 'Select which model/provider to use',
-      },
-      {
-        displayName: 'Options',
-        name: 'options',
-        type: 'collection',
-        default: {},
-        options: [
+			},
+			{
+				displayName: 'Options',
+				name: 'options',
+				type: 'collection',
+				default: {},
+				options: [
           { displayName: 'Temperature', name: 'temperature', type: 'number', default: 0.3 },
           { displayName: 'Max Tokens', name: 'maxTokens', type: 'number', default: 1024 },
-        ],
-      },
-    ],
-  };
+				],
+			},
+		],
+	};
 
-  methods = {
-    loadOptions: {
-      async getModels(this: ILoadOptionsFunctions) {
-        const credentials = await this.getCredentials('fusionApi');
+	methods = {
+		loadOptions: {
+			async getModels(this: ILoadOptionsFunctions) {
+					const credentials = await this.getCredentials('fusionApi');
         const baseUrl = credentials.baseUrl ?? 'https://api.mcp4.ai';
 
         const res = await this.helpers.httpRequest({
-          method: 'GET',
-          url: `${baseUrl}/api/models`,
+						method: 'GET',
+						url: `${baseUrl}/api/models`,
           headers: { Authorization: `ApiKey ${credentials.apiKey}` },
         });
 
@@ -200,20 +200,20 @@ export class FusionChatModel implements INodeType {
         });
 
         return modelOptions;
-      },
-    },
-  };
+			},
+		},
+	};
 
   async supplyData(this: any, itemIndex: number) {
-    const credentials = await this.getCredentials('fusionApi');
+		const credentials = await this.getCredentials('fusionApi');
     const baseUrl = credentials.baseUrl ?? credentials.url ?? 'https://api.mcp4.ai';
     const apiKey = credentials.apiKey;
 
-    const model = this.getNodeParameter('model', itemIndex) as string;
+		const model = this.getNodeParameter('model', itemIndex) as string;
     const options = this.getNodeParameter('options', itemIndex, {});
 
     const fusionModel = new FusionLangChainChat({ model, options, apiKey, baseUrl, httpRequest: this.helpers.httpRequest });
 
-    return { response: fusionModel };
-  }
+		return { response: fusionModel };
+	}
 }
