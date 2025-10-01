@@ -244,41 +244,98 @@ export class Fusion implements INodeType {
 					}
 
 				} else if (operation === 'getAccount') {
-					// Try different possible account endpoints
-					const possibleEndpoints = [
-						'/api/user',
-						'/api/user/profile', 
-						'/api/me',
-						'/api/account',
-						'/api/user/account'
-					];
+					// Enhanced account info combining multiple data sources
+					const accountData: any = {
+						profile: null,
+						chatHistory: null,
+						apiKeys: null,
+						externalKeys: null,
+						summary: {}
+					};
 					
-					let lastError: any = null;
-					
-					for (const endpoint of possibleEndpoints) {
-						try {
-							responseData = await this.helpers.httpRequest({
-								method: 'GET',
-								url: `${baseUrl}${endpoint}`,
-								headers: {
-									Authorization: `ApiKey ${credentials.apiKey}`,
-									'Content-Type': 'application/json',
-								},
-							});
-							// If successful, break out of the loop
-							break;
-						} catch (error: any) {
-							lastError = error;
-							// Continue to next endpoint
-							continue;
-						}
+					// 1. Get user profile (primary account info)
+					try {
+						const profileResponse = await this.helpers.httpRequest({
+							method: 'GET',
+							url: `${baseUrl}/api/profile`,
+							headers: {
+								Authorization: `ApiKey ${credentials.apiKey}`,
+								'Content-Type': 'application/json',
+							},
+						});
+						accountData.profile = profileResponse;
+					} catch (error: any) {
+						console.error('Failed to get user profile:', error.message);
+						accountData.profile = { error: error.message };
 					}
 					
-					// If all endpoints failed, throw the last error
-					if (!responseData) {
-						console.error('All Fusion API account endpoints failed:', lastError?.message || 'Unknown error');
-						throw lastError || new Error('All account endpoints returned 404. Please check Fusion API documentation for the correct account endpoint.');
+					// 2. Get chat history (usage activity)
+					try {
+						const chatsResponse = await this.helpers.httpRequest({
+							method: 'GET',
+							url: `${baseUrl}/api/chats`,
+							headers: {
+								Authorization: `ApiKey ${credentials.apiKey}`,
+								'Content-Type': 'application/json',
+							},
+						});
+						accountData.chatHistory = chatsResponse;
+					} catch (error: any) {
+						console.error('Failed to get chat history:', error.message);
+						accountData.chatHistory = { error: error.message };
 					}
+					
+					// 3. Get API keys (account management)
+					try {
+						const keysResponse = await this.helpers.httpRequest({
+							method: 'GET',
+							url: `${baseUrl}/api/keys`,
+							headers: {
+								Authorization: `ApiKey ${credentials.apiKey}`,
+								'Content-Type': 'application/json',
+							},
+						});
+						accountData.apiKeys = keysResponse;
+					} catch (error: any) {
+						console.error('Failed to get API keys:', error.message);
+						accountData.apiKeys = { error: error.message };
+					}
+					
+					// 4. Get external keys (if any)
+					try {
+						const externalKeysResponse = await this.helpers.httpRequest({
+							method: 'GET',
+							url: `${baseUrl}/api/external-keys`,
+							headers: {
+								Authorization: `ApiKey ${credentials.apiKey}`,
+								'Content-Type': 'application/json',
+							},
+						});
+						accountData.externalKeys = externalKeysResponse;
+					} catch (error: any) {
+						console.error('Failed to get external keys:', error.message);
+						accountData.externalKeys = { error: error.message };
+					}
+					
+					// 5. Create summary statistics
+					if (accountData.profile && !accountData.profile.error) {
+						accountData.summary = {
+							userId: accountData.profile.id,
+							email: accountData.profile.email,
+							displayName: accountData.profile.displayName,
+							role: accountData.profile.role,
+							accountCreated: accountData.profile.createdAt,
+							totalChats: Array.isArray(accountData.chatHistory) ? accountData.chatHistory.length : 0,
+							activeApiKeys: Array.isArray(accountData.apiKeys) ? accountData.apiKeys.filter((key: any) => key.is_active).length : 0,
+							totalApiKeys: Array.isArray(accountData.apiKeys) ? accountData.apiKeys.length : 0,
+							hasExternalKeys: Array.isArray(accountData.externalKeys) ? accountData.externalKeys.length > 0 : false,
+							lastChatActivity: Array.isArray(accountData.chatHistory) && accountData.chatHistory.length > 0 
+								? accountData.chatHistory[0].last_message_at 
+								: null
+						};
+					}
+					
+					responseData = accountData;
 				}
 
 				returnData.push({
