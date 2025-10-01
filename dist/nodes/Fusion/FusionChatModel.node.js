@@ -1,9 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FusionChatModel = void 0;
 const n8n_workflow_1 = require("n8n-workflow");
 const chat_models_1 = require("@langchain/core/language_models/chat_models");
 const messages_1 = require("@langchain/core/messages");
+const node_fetch_1 = __importDefault(require("node-fetch"));
 // Fusion LangChain chat model with tool-calling surface restored
 class FusionLangChainChat extends chat_models_1.BaseChatModel {
     get _supportsToolCalling() { return true; }
@@ -20,7 +24,6 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         this.options = args.options;
         this.apiKey = args.apiKey;
         this.baseUrl = args.baseUrl;
-        this.httpRequest = args.httpRequest;
     }
     _llmType() { return 'fusion'; }
     async _generate(messages, _options) {
@@ -57,16 +60,17 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         if (provider !== 'neuroswitch' && modelId) {
             body.model = modelId;
         }
-        const res = await this.httpRequest({
+        const res = await (0, node_fetch_1.default)(`${this.baseUrl}/api/chat`, {
             method: 'POST',
-            url: `${this.baseUrl}/api/chat`,
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `ApiKey ${this.apiKey}`,
             },
-            body: body,
+            body: JSON.stringify(body),
         });
-        const data = res;
+        if (!res.ok)
+            throw new Error(`Fusion API error: ${res.status} ${res.statusText}`);
+        const data = (await res.json());
         const text = data?.response?.text ?? '';
         const message = new messages_1.AIMessage({
             content: text,
@@ -173,7 +177,7 @@ class FusionChatModel {
         const apiKey = credentials.apiKey;
         const model = this.getNodeParameter('model', itemIndex);
         const options = this.getNodeParameter('options', itemIndex, {});
-        const fusionModel = new FusionLangChainChat({ model, options, apiKey, baseUrl, httpRequest: this.helpers.httpRequest });
+        const fusionModel = new FusionLangChainChat({ model, options, apiKey, baseUrl });
         return { response: fusionModel };
     }
 }

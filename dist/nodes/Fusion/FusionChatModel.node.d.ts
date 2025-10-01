@@ -8,7 +8,6 @@ declare class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions
     private apiKey;
     private baseUrl;
     private _boundTools?;
-    private httpRequest;
     supportsToolCalling: boolean;
     get _supportsToolCalling(): boolean;
     get supportsToolChoice(): boolean;
@@ -19,7 +18,6 @@ declare class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions
         options: any;
         apiKey: string;
         baseUrl: string;
-        httpRequest: any;
     });
     _llmType(): string;
     _generate(messages: BaseMessage[], _options?: BaseChatModelCallOptions): Promise<ChatResult>;
