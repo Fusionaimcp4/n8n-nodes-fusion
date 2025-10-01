@@ -1,5 +1,11 @@
 # Fusion AI Node for n8n
 
+[![npm version](https://img.shields.io/npm/v/n8n-nodes-fusion)](https://www.npmjs.com/package/n8n-nodes-fusion)
+[![npm downloads](https://img.shields.io/npm/dm/n8n-nodes-fusion)](https://www.npmjs.com/package/n8n-nodes-fusion)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
+[![n8n Community Node](https://img.shields.io/badge/n8n-Community%20Node-blue)](https://n8n.io/)
+
 A production-ready n8n community node package that provides seamless integration with Fusion AI's NeuroSwitch multi-provider orchestration platform.
 
 ## 🚀 Features
@@ -100,6 +106,12 @@ The primary node for AI Agent workflows:
 2. **Access Control**: Limit API key permissions to necessary scopes
 3. **Monitoring**: Monitor API usage and costs through Fusion AI dashboard
 4. **Rotation**: Regularly rotate API keys for enhanced security
+
+### Reporting Security Issues
+If you discover a security vulnerability, please **do not** open a public GitHub issue. Instead:
+- **Email**: `security@mcp4.ai`
+- **Response Time**: We aim to respond within 24-48 hours
+- **See**: [SECURITY.md](SECURITY.md) for detailed reporting guidelines
 
 ## 🛠️ Development
 
