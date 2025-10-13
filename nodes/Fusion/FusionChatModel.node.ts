@@ -68,6 +68,11 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       body.model = modelId;
     }
 
+    if (this._boundTools?.length) {
+      body.tools = this._boundTools;
+      body.enable_tools = true;
+    }
+
     let res: any;
     try {
       res = await fetch(`${this.baseUrl}/api/chat`, {
@@ -98,7 +103,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     };
     interface FusionResponse {
       prompt?: string;
-      response?: { text?: string } | null;
+      response?: { text?: string; tool_calls?: any[]; invalid_tool_calls?: any[] } | null;
       provider?: string;
       model?: string;
       tokens?: Tokens;
@@ -117,8 +122,8 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         tokens: data?.tokens,
         cost: data?.cost_charged_to_credits,
       },
-      tool_calls: [],
-      invalid_tool_calls: [],
+      tool_calls: data?.response?.tool_calls ?? [],
+      invalid_tool_calls: data?.response?.invalid_tool_calls ?? [],
     });
 
     const generation: ChatGeneration = {

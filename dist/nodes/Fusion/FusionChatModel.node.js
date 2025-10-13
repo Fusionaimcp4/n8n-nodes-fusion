@@ -60,6 +60,10 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         if (provider !== 'neuroswitch' && modelId) {
             body.model = modelId;
         }
+        if (this._boundTools?.length) {
+            body.tools = this._boundTools;
+            body.enable_tools = true;
+        }
         let res;
         try {
             res = await (0, node_fetch_1.default)(`${this.baseUrl}/api/chat`, {
@@ -91,8 +95,8 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                 tokens: data?.tokens,
                 cost: data?.cost_charged_to_credits,
             },
-            tool_calls: [],
-            invalid_tool_calls: [],
+            tool_calls: data?.response?.tool_calls ?? [],
+            invalid_tool_calls: data?.response?.invalid_tool_calls ?? [],
         });
         const generation = {
             text,
