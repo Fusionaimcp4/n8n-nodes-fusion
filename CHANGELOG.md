@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2025-10-13
+
+### Fixed
+- **Tool-Calling Passthrough**: Enabled tool-calling functionality in FusionChatModel
+  - Tools are now properly forwarded to Fusion API when `bindTools()` is called
+  - Tool calls and invalid tool calls are now parsed from API responses
+  - Maintains backward compatibility when no tools are bound
+- Updated TypeScript interface to support tool response fields
+
+## [0.2.3] - 2024-10-XX
+
 ### Added
 - Security policy and vulnerability reporting guidelines
 - Issue templates for bug reports and feature requests
