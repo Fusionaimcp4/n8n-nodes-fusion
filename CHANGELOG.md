@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2025-01-14
+
+### Added
+- Debug logging to inspect LangChain tool structure and properties
+
+### Changed
+- Enhanced tool conversion debugging to identify why DynamicStructuredTool properties aren't accessible
+
 ## [0.2.6] - 2025-10-14
 
 ### Fixed
