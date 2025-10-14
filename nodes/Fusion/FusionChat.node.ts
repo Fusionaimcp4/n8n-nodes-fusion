@@ -223,9 +223,15 @@ export class FusionChat implements INodeType {
 					provider = model; // Handle legacy "neuroswitch" or other single values
 				}
 
+				// Map provider names to match backend API expectations
+				const providerMap: Record<string, string> = {
+					'anthropic': 'claude',  // Backend expects "claude" not "anthropic"
+				};
+				const mappedProvider = providerMap[provider] || provider;
+
 				const requestBody: any = {
 					prompt,
-					provider,
+					provider: mappedProvider,
 					temperature: additionalFields.temperature || 0.3,
 					max_tokens: additionalFields.maxTokens || 1024,
 					top_p: additionalFields.topP || 1,

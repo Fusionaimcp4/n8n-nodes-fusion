@@ -51,9 +51,14 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         else if (this.model) {
             provider = this.model; // Handle legacy "neuroswitch" or other single values
         }
+        // Map provider names to match backend API expectations
+        const providerMap = {
+            'anthropic': 'claude', // Backend expects "claude" not "anthropic"
+        };
+        const mappedProvider = providerMap[provider] || provider;
         const body = {
             prompt,
-            provider,
+            provider: mappedProvider,
             temperature: this.options?.temperature ?? 0.3,
             max_tokens: this.options?.maxTokens ?? 1024,
         };
@@ -64,6 +69,13 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
             body.tools = this._boundTools;
             body.enable_tools = true;
         }
+        // DEBUG: Log the request being sent
+        console.log('[FusionChatModel] Provider mapping:', provider, '->', mappedProvider);
+        console.log('[FusionChatModel] Bound tools:', this._boundTools ? `${this._boundTools.length} tools` : 'none');
+        if (this._boundTools?.length) {
+            console.log('[FusionChatModel] Tool details:', JSON.stringify(this._boundTools, null, 2));
+        }
+        console.log('[FusionChatModel] Full request body:', JSON.stringify(body, null, 2));
         let res;
         try {
             res = await (0, node_fetch_1.default)(`${this.baseUrl}/api/chat`, {

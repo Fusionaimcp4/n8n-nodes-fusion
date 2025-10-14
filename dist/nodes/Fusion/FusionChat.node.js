@@ -209,9 +209,14 @@ class FusionChat {
                 else if (model) {
                     provider = model; // Handle legacy "neuroswitch" or other single values
                 }
+                // Map provider names to match backend API expectations
+                const providerMap = {
+                    'anthropic': 'claude', // Backend expects "claude" not "anthropic"
+                };
+                const mappedProvider = providerMap[provider] || provider;
                 const requestBody = {
                     prompt,
-                    provider,
+                    provider: mappedProvider,
                     temperature: additionalFields.temperature || 0.3,
                     max_tokens: additionalFields.maxTokens || 1024,
                     top_p: additionalFields.topP || 1,

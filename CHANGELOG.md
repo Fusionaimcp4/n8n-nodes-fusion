@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2025-10-13
+
+### Fixed
+- **Provider Mapping**: Fixed Anthropic Claude models routing to wrong API
+  - Maps "anthropic" provider to "claude" to match backend expectations
+  - Prevents "404 model not found" errors when using Claude models
+  - Applied to all three nodes (FusionChatModel, FusionChat, Fusion)
+- **Enhanced Debugging**: Added detailed logging for tool-calling diagnostics
+  - Logs provider mapping transformations
+  - Shows bound tools and full request payload
+  - Helps diagnose tool-calling issues
+
 ## [0.2.4] - 2025-10-13
 
 ### Fixed
