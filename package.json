@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-fusion",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "n8n community node for Fusion AI (NeuroSwitch multi-provider orchestration)",
   "keywords": [
     "n8n-community-node",

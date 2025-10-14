@@ -189,9 +189,10 @@ class Fusion {
                     }
                     // Map provider names to match backend API expectations
                     const providerMap = {
-                        'anthropic': 'claude', // Backend expects "claude" not "anthropic"
+                        'anthropic': 'claude',
+                        'google': 'gemini', // Backend expects "gemini" not "google"
                     };
-                    const mappedProvider = providerMap[provider] || provider;
+                    const mappedProvider = providerMap[provider.toLowerCase()] || provider;
                     const requestBody = {
                         prompt,
                         provider: mappedProvider,

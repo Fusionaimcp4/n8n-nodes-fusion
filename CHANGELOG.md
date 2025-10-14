@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2025-01-14
+
+### Fixed
+- **Case-Insensitive Provider Mapping**: Fixed provider mapping to handle "Anthropic" and "Google" (capitalized) from model dropdown
+- Provider mapping now works with both lowercase and capitalized provider names
+
+### Changed
+- Made provider mapping case-insensitive using `.toLowerCase()`
+
 ## [0.3.0] - 2025-01-14
 
 ### Fixed

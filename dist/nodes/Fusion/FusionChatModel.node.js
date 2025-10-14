@@ -56,7 +56,7 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
             'anthropic': 'claude',
             'google': 'gemini', // Backend expects "gemini" not "google"
         };
-        const mappedProvider = providerMap[provider] || provider;
+        const mappedProvider = providerMap[provider.toLowerCase()] || provider;
         const body = {
             prompt,
             provider: mappedProvider,
