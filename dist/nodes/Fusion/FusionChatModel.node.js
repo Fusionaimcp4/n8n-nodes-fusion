@@ -74,7 +74,42 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                 if (typeof tool.toJSON === 'function') {
                     return tool.toJSON();
                 }
-                // If tool has schema property, use it to build OpenAI format
+                // If tool has Zod schema, convert it to JSON Schema
+                if (tool.schema && typeof tool.schema === 'object' && tool.schema._def) {
+                    // Convert Zod schema to JSON Schema
+                    const jsonSchema = {
+                        type: 'object',
+                        properties: {},
+                        required: []
+                    };
+                    // Try to extract properties from Zod schema
+                    if (tool.schema._def.shape) {
+                        const shape = tool.schema._def.shape();
+                        Object.keys(shape).forEach(key => {
+                            const field = shape[key];
+                            if (field._def) {
+                                jsonSchema.properties[key] = {
+                                    type: field._def.typeName === 'ZodString' ? 'string' :
+                                        field._def.typeName === 'ZodNumber' ? 'number' :
+                                            field._def.typeName === 'ZodBoolean' ? 'boolean' : 'string',
+                                    description: field.description || ''
+                                };
+                                if (!field.isOptional()) {
+                                    jsonSchema.required.push(key);
+                                }
+                            }
+                        });
+                    }
+                    return {
+                        type: 'function',
+                        function: {
+                            name: tool.name,
+                            description: tool.description || '',
+                            parameters: jsonSchema,
+                        },
+                    };
+                }
+                // If tool has plain schema property, use it to build OpenAI format
                 if (tool.schema && typeof tool.schema === 'object') {
                     return {
                         type: 'function',

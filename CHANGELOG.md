@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.9] - 2025-01-14
+
+### Fixed
+- **Zod Schema Conversion**: Properly convert LangChain Zod schemas to OpenAI JSON Schema format
+- Tool conversion now handles ZodObject schemas correctly for OpenAI function calling
+
+### Changed
+- Enhanced tool conversion logic to detect and convert Zod schemas to JSON Schema
+
 ## [0.2.8] - 2025-01-14
 
 ### Added
