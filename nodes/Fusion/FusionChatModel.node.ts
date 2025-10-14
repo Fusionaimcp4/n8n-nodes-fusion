@@ -60,6 +60,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     // Map provider names to match backend API expectations
     const providerMap: Record<string, string> = {
       'anthropic': 'claude',  // Backend expects "claude" not "anthropic"
+      'google': 'gemini',     // Backend expects "gemini" not "google"
     };
     const mappedProvider = providerMap[provider] || provider;
 
@@ -85,58 +86,19 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
           return tool.toJSON();
         }
         
-        // If tool has Zod schema, convert it to JSON Schema
-        if (tool.schema && typeof tool.schema === 'object' && tool.schema._def) {
-          // Convert Zod schema to JSON Schema
-          const jsonSchema: any = {
-            type: 'object',
-            properties: {},
-            required: []
-          };
-          
-          // Try to extract properties from Zod schema
-          if (tool.schema._def.shape) {
-            const shape = tool.schema._def.shape();
-            Object.keys(shape).forEach(key => {
-              const field = shape[key];
-              if (field._def) {
-                jsonSchema.properties[key] = {
-                  type: field._def.typeName === 'ZodString' ? 'string' : 
-                        field._def.typeName === 'ZodNumber' ? 'number' :
-                        field._def.typeName === 'ZodBoolean' ? 'boolean' : 'string',
-                  description: field.description || ''
-                };
-                if (!field.isOptional()) {
-                  jsonSchema.required.push(key);
-                }
-              }
-            });
+        // Create a simple OpenAI function format
+        return {
+          type: 'function',
+          function: {
+            name: tool.name || 'unknown_tool',
+            description: tool.description || 'A tool function',
+            parameters: {
+              type: 'object',
+              properties: {},
+              required: []
+            }
           }
-          
-          return {
-            type: 'function',
-            function: {
-              name: tool.name,
-              description: tool.description || '',
-              parameters: jsonSchema,
-            },
-          };
-        }
-        
-        // If tool has plain schema property, use it to build OpenAI format
-        if (tool.schema && typeof tool.schema === 'object') {
-          return {
-            type: 'function',
-            function: {
-              name: tool.name || tool.schema.name,
-              description: tool.description || tool.schema.description || '',
-              parameters: tool.schema,
-            },
-          };
-        }
-        
-        // Fallback: return as-is (shouldn't happen with proper LangChain tools)
-        return tool;
+        };
       });
       body.tools = formattedTools;
       body.enable_tools = true;

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-01-14
+
+### Fixed
+- **Provider Mapping**: Fixed anthropic→claude and google→gemini mapping
+- **Tool Conversion**: Simplified tool conversion to basic OpenAI function format
+- **Provider Routing**: All providers now route correctly instead of falling back to NeuroSwitch
+
+### Changed
+- Simplified tool conversion logic to avoid complex Zod schema parsing
+- Enhanced provider mapping to handle all major providers correctly
+
 ## [0.2.9] - 2025-01-14
 
 ### Fixed
