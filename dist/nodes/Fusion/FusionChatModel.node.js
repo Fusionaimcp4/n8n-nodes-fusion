@@ -73,24 +73,78 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         if (this._boundTools?.length) {
             // Convert LangChain tools to OpenAI format
             const formattedTools = this._boundTools.map((tool) => {
-                console.log('[DEBUG Tool] keys:', Object.keys(tool).slice(0, 30), 'schema?', !!tool.schema, 'name:', tool.name);
-                console.log('[DEBUG Tool] schema type:', typeof tool.schema, 'schema value:', tool.schema);
+                console.log('[DEBUG Tool] Processing tool:', tool.name);
                 // Skip toJSON() - it returns LangChain serialization placeholders
-                // Go straight to manual conversion
-                // Create a simple OpenAI function format
+                // Extract parameters from Zod schema
+                let parameters = {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                };
+                if (tool.schema && typeof tool.schema === 'object') {
+                    try {
+                        // Try to use zodToJsonSchema if available
+                        const zodToJsonSchema = require('zod-to-json-schema');
+                        const jsonSchema = zodToJsonSchema.zodToJsonSchema(tool.schema);
+                        parameters = jsonSchema;
+                        console.log('[DEBUG Tool] Converted Zod schema to JSON Schema:', JSON.stringify(parameters, null, 2));
+                    }
+                    catch (error) {
+                        console.log('[DEBUG Tool] zod-to-json-schema not available or failed:', error.message);
+                        // Fallback: Try to extract from Zod _def
+                        try {
+                            if (tool.schema._def && tool.schema._def.shape) {
+                                const shape = tool.schema._def.shape();
+                                const properties = {};
+                                const required = [];
+                                Object.keys(shape).forEach((key) => {
+                                    const field = shape[key];
+                                    if (field && field._def) {
+                                        // Map Zod types to JSON Schema types
+                                        let type = 'string';
+                                        if (field._def.typeName === 'ZodString')
+                                            type = 'string';
+                                        else if (field._def.typeName === 'ZodNumber')
+                                            type = 'number';
+                                        else if (field._def.typeName === 'ZodBoolean')
+                                            type = 'boolean';
+                                        else if (field._def.typeName === 'ZodArray')
+                                            type = 'array';
+                                        else if (field._def.typeName === 'ZodObject')
+                                            type = 'object';
+                                        properties[key] = {
+                                            type,
+                                            description: field.description || field._def.description || ''
+                                        };
+                                        // Check if field is required (not optional)
+                                        if (!field.isOptional || !field.isOptional()) {
+                                            required.push(key);
+                                        }
+                                    }
+                                });
+                                parameters = {
+                                    type: 'object',
+                                    properties,
+                                    required
+                                };
+                                console.log('[DEBUG Tool] Extracted schema from Zod _def:', JSON.stringify(parameters, null, 2));
+                            }
+                        }
+                        catch (defError) {
+                            console.log('[DEBUG Tool] Failed to extract from Zod _def:', defError.message);
+                        }
+                    }
+                }
+                // Create OpenAI function format
                 const formattedTool = {
                     type: 'function',
                     function: {
                         name: tool.name || 'unknown_tool',
                         description: tool.description || 'A tool function',
-                        parameters: {
-                            type: 'object',
-                            properties: {},
-                            required: []
-                        }
+                        parameters
                     }
                 };
-                console.log('[DEBUG Tool] Formatted tool:', formattedTool);
+                console.log('[DEBUG Tool] Final formatted tool:', JSON.stringify(formattedTool, null, 2));
                 return formattedTool;
             });
             body.tools = formattedTools;
