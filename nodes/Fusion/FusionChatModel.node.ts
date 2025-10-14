@@ -1,6 +1,6 @@
 import { INodeType, INodeTypeDescription, NodeConnectionTypes, ILoadOptionsFunctions } from 'n8n-workflow';
 import { BaseChatModel, BaseChatModelCallOptions } from '@langchain/core/language_models/chat_models';
-import { AIMessage, BaseMessage } from '@langchain/core/messages';
+import { AIMessage, BaseMessage, ToolMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
 import fetch from 'node-fetch';
 
@@ -33,14 +33,6 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   _llmType() { return 'fusion'; }
 
   async _generate(messages: BaseMessage[], _options?: BaseChatModelCallOptions): Promise<ChatResult> {
-    const roleOf = (m: BaseMessage) => {
-      const t = (m as any)?._getType?.() as string | undefined;
-      if (t === 'human') return 'user';
-      if (t === 'ai') return 'assistant';
-      if (t === 'system') return 'system';
-      return t ?? 'user';
-    };
-
     const prompt = messages.map((m) => (m as any).content).join('\n');
 
     // Split provider / model from dropdown
@@ -59,16 +51,68 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
 
     // Map provider names to match backend API expectations
     const providerMap: Record<string, string> = {
-      'anthropic': 'claude',  // Backend expects "claude" not "anthropic"
-      'google': 'gemini',     // Backend expects "gemini" not "google"
+      'anthropic': 'claude',
+      'google': 'gemini',
     };
     const mappedProvider = providerMap[provider.toLowerCase()] || provider;
-    
-    // Additional debug logging for provider mapping
-    console.log('[FusionChatModel] Original provider:', provider);
-    console.log('[FusionChatModel] Lowercase provider:', provider.toLowerCase());
-    console.log('[FusionChatModel] Mapped provider:', mappedProvider);
 
+    // Format tools for the request
+    let formattedTools: any[] | undefined;
+    if (this._boundTools?.length) {
+      formattedTools = this._boundTools.map((tool: any) => {
+        let parameters: any = {
+          type: 'object',
+          properties: {},
+          required: []
+        };
+        
+        if (tool.schema && typeof tool.schema === 'object') {
+          try {
+            const zodToJsonSchema = require('zod-to-json-schema');
+            parameters = zodToJsonSchema.zodToJsonSchema(tool.schema);
+          } catch (error: any) {
+            // Fallback schema extraction
+            if (tool.schema._def && tool.schema._def.shape) {
+              const shape = tool.schema._def.shape();
+              const properties: any = {};
+              const required: string[] = [];
+              
+              Object.keys(shape).forEach((key) => {
+                const field = shape[key];
+                if (field && field._def) {
+                  let type = 'string';
+                  if (field._def.typeName === 'ZodString') type = 'string';
+                  else if (field._def.typeName === 'ZodNumber') type = 'number';
+                  else if (field._def.typeName === 'ZodBoolean') type = 'boolean';
+                  
+                  properties[key] = {
+                    type,
+                    description: field.description || field._def.description || ''
+                  };
+                  
+                  if (!field.isOptional || !field.isOptional()) {
+                    required.push(key);
+                  }
+                }
+              });
+              
+              parameters = { type: 'object', properties, required };
+            }
+          }
+        }
+        
+        return {
+          type: 'function',
+          function: {
+            name: tool.name || 'unknown_tool',
+            description: tool.description || 'A tool function',
+            parameters
+          }
+        };
+      });
+    }
+
+    // Initial request body
     const body: Record<string, any> = {
       prompt,
       provider: mappedProvider,
@@ -80,98 +124,14 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       body.model = modelId;
     }
 
-    if (this._boundTools?.length) {
-      // Convert LangChain tools to OpenAI format
-      const formattedTools = this._boundTools.map((tool: any) => {
-        console.log('[DEBUG Tool] Processing tool:', tool.name);
-        
-        // Skip toJSON() - it returns LangChain serialization placeholders
-        // Extract parameters from Zod schema
-        let parameters: any = {
-          type: 'object',
-          properties: {},
-          required: []
-        };
-        
-        if (tool.schema && typeof tool.schema === 'object') {
-          try {
-            // Try to use zodToJsonSchema if available
-            const zodToJsonSchema = require('zod-to-json-schema');
-            const jsonSchema = zodToJsonSchema.zodToJsonSchema(tool.schema);
-            parameters = jsonSchema;
-            console.log('[DEBUG Tool] Converted Zod schema to JSON Schema:', JSON.stringify(parameters, null, 2));
-          } catch (error: any) {
-            console.log('[DEBUG Tool] zod-to-json-schema not available or failed:', error.message);
-            
-            // Fallback: Try to extract from Zod _def
-            try {
-              if (tool.schema._def && tool.schema._def.shape) {
-                const shape = tool.schema._def.shape();
-                const properties: any = {};
-                const required: string[] = [];
-                
-                Object.keys(shape).forEach((key) => {
-                  const field = shape[key];
-                  if (field && field._def) {
-                    // Map Zod types to JSON Schema types
-                    let type = 'string';
-                    if (field._def.typeName === 'ZodString') type = 'string';
-                    else if (field._def.typeName === 'ZodNumber') type = 'number';
-                    else if (field._def.typeName === 'ZodBoolean') type = 'boolean';
-                    else if (field._def.typeName === 'ZodArray') type = 'array';
-                    else if (field._def.typeName === 'ZodObject') type = 'object';
-                    
-                    properties[key] = {
-                      type,
-                      description: field.description || field._def.description || ''
-                    };
-                    
-                    // Check if field is required (not optional)
-                    if (!field.isOptional || !field.isOptional()) {
-                      required.push(key);
-                    }
-                  }
-                });
-                
-                parameters = {
-                  type: 'object',
-                  properties,
-                  required
-                };
-                console.log('[DEBUG Tool] Extracted schema from Zod _def:', JSON.stringify(parameters, null, 2));
-              }
-            } catch (defError: any) {
-              console.log('[DEBUG Tool] Failed to extract from Zod _def:', defError.message);
-            }
-          }
-        }
-        
-        // Create OpenAI function format
-        const formattedTool = {
-          type: 'function',
-          function: {
-            name: tool.name || 'unknown_tool',
-            description: tool.description || 'A tool function',
-            parameters
-          }
-        };
-        console.log('[DEBUG Tool] Final formatted tool:', JSON.stringify(formattedTool, null, 2));
-        return formattedTool;
-      });
+    if (formattedTools?.length) {
       body.tools = formattedTools;
       body.enable_tools = true;
     }
 
-    // DEBUG: Log the request being sent
-    console.log('[FusionChatModel] Provider mapping:', provider, '->', mappedProvider);
-    console.log('[FusionChatModel] Bound tools:', this._boundTools ? `${this._boundTools.length} tools` : 'none');
-    console.log('[FusionChatModel] Requested provider from model:', this.model);
-    console.log('[FusionChatModel] Final provider being sent:', mappedProvider);
-    if (body.tools?.length) {
-      console.log('[FusionChatModel] Formatted tools being sent:', JSON.stringify(body.tools, null, 2));
-    }
-    console.log('[FusionChatModel] Full request body:', JSON.stringify(body, null, 2));
+    console.log('[FusionChatModel] Initial request with tools:', formattedTools?.length || 0);
 
+    // Make initial API call
     let res: any;
     try {
       res = await fetch(`${this.baseUrl}/api/chat`, {
@@ -183,13 +143,11 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         body: JSON.stringify(body),
       });
     } catch (error: any) {
-      console.error('Fusion API request failed:', error.message);
       throw new Error(`Fusion API request failed: ${error.message}`);
     }
 
     if (!res.ok) {
       const errorText = await res.text().catch(() => 'Unknown error');
-      console.error(`Fusion API error: ${res.status} ${res.statusText}`, errorText);
       throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
     }
 
@@ -209,9 +167,112 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       cost_charged_to_credits?: number;
     }
 
-    const data = (await res.json()) as FusionResponse;
-    const text = data?.response?.text ?? '';
+    let data = (await res.json()) as FusionResponse;
+    let text = data?.response?.text ?? '';
+    let toolCalls = data?.response?.tool_calls ?? [];
 
+    // Tool execution loop
+    let maxIterations = 5; // Prevent infinite loops
+    let iteration = 0;
+    
+    while (toolCalls.length > 0 && this._boundTools && iteration < maxIterations) {
+      iteration++;
+      console.log(`[FusionChatModel] Tool execution iteration ${iteration}, ${toolCalls.length} tool calls`);
+      
+      // Execute each tool call
+      const toolResults: any[] = [];
+      for (const toolCall of toolCalls) {
+        const toolName = toolCall.name || toolCall.function?.name;
+        const toolInput = toolCall.input || toolCall.function?.arguments || toolCall.arguments || {};
+        const toolCallId = toolCall.id || `call_${Date.now()}`;
+        
+        console.log(`[FusionChatModel] Executing tool: ${toolName} with input:`, toolInput);
+        
+        // Find the matching tool
+        const tool = this._boundTools.find((t: any) => t.name === toolName);
+        
+        if (tool && typeof tool.invoke === 'function') {
+          try {
+            // Execute the tool
+            const result = await tool.invoke(toolInput);
+            console.log(`[FusionChatModel] Tool ${toolName} result:`, result);
+            
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCallId,
+              name: toolName,
+              content: typeof result === 'string' ? result : JSON.stringify(result)
+            });
+          } catch (error: any) {
+            console.error(`[FusionChatModel] Tool ${toolName} execution error:`, error.message);
+            toolResults.push({
+              role: 'tool',
+              tool_call_id: toolCallId,
+              name: toolName,
+              content: `Error: ${error.message}`
+            });
+          }
+        } else {
+          console.error(`[FusionChatModel] Tool ${toolName} not found or not invokable`);
+          toolResults.push({
+            role: 'tool',
+            tool_call_id: toolCallId,
+            name: toolName,
+            content: `Error: Tool ${toolName} not found`
+          });
+        }
+      }
+      
+      // Send tool results back to the LLM
+      const followUpBody: Record<string, any> = {
+        prompt: `Tool results: ${JSON.stringify(toolResults)}`,
+        provider: mappedProvider,
+        temperature: this.options?.temperature ?? 0.3,
+        max_tokens: this.options?.maxTokens ?? 1024,
+      };
+
+      if (provider !== 'neuroswitch' && modelId) {
+        followUpBody.model = modelId;
+      }
+
+      if (formattedTools?.length) {
+        followUpBody.tools = formattedTools;
+        followUpBody.enable_tools = true;
+      }
+
+      console.log('[FusionChatModel] Sending tool results back to LLM');
+      
+      try {
+        res = await fetch(`${this.baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `ApiKey ${this.apiKey}`,
+          },
+          body: JSON.stringify(followUpBody),
+        });
+        
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => 'Unknown error');
+          throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
+        }
+        
+        data = (await res.json()) as FusionResponse;
+        text = data?.response?.text ?? '';
+        toolCalls = data?.response?.tool_calls ?? [];
+        
+        console.log('[FusionChatModel] LLM response after tool execution:', text);
+      } catch (error: any) {
+        console.error('[FusionChatModel] Error sending tool results:', error.message);
+        break;
+      }
+    }
+
+    if (iteration >= maxIterations) {
+      console.warn('[FusionChatModel] Max tool execution iterations reached');
+    }
+
+    // Return final response
     const message = new AIMessage({
       content: text,
       additional_kwargs: {},
@@ -221,8 +282,8 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         tokens: data?.tokens,
         cost: data?.cost_charged_to_credits,
       },
-      tool_calls: data?.response?.tool_calls ?? [],
-      invalid_tool_calls: data?.response?.invalid_tool_calls ?? [],
+      tool_calls: [],
+      invalid_tool_calls: [],
     });
 
     const generation: ChatGeneration = {
