@@ -78,12 +78,13 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       // Convert LangChain tools to OpenAI format
       const formattedTools = this._boundTools.map((tool: any) => {
         console.log('[DEBUG Tool] keys:', Object.keys(tool).slice(0, 30), 'schema?', !!tool.schema, 'name:', tool.name);
+        console.log('[DEBUG Tool] schema type:', typeof tool.schema, 'schema value:', tool.schema);
         // If tool has a toJSON method, use it
         if (typeof tool.toJSON === 'function') {
           return tool.toJSON();
         }
         // If tool has schema property, use it to build OpenAI format
-        if (tool.schema) {
+        if (tool.schema && typeof tool.schema === 'object') {
           return {
             type: 'function',
             function: {
