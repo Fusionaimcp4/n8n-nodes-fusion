@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.8] - 2025-01-14
+
+### Added
+- Enhanced debug logging to inspect LangChain tool schema structure and type
+
+### Changed
+- Improved tool conversion debugging to identify schema property access issues
+
 ## [0.2.7] - 2025-01-14
 
 ### Added
