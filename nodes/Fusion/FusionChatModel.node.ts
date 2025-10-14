@@ -86,12 +86,8 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         console.log('[DEBUG Tool] keys:', Object.keys(tool).slice(0, 30), 'schema?', !!tool.schema, 'name:', tool.name);
         console.log('[DEBUG Tool] schema type:', typeof tool.schema, 'schema value:', tool.schema);
         
-        // If tool has a toJSON method, use it
-        if (typeof tool.toJSON === 'function') {
-          const jsonTool = tool.toJSON();
-          console.log('[DEBUG Tool] toJSON result:', jsonTool);
-          return jsonTool;
-        }
+        // Skip toJSON() - it returns LangChain serialization placeholders
+        // Go straight to manual conversion
         
         // Create a simple OpenAI function format
         const formattedTool = {
