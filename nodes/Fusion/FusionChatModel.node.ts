@@ -107,6 +107,8 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     // DEBUG: Log the request being sent
     console.log('[FusionChatModel] Provider mapping:', provider, '->', mappedProvider);
     console.log('[FusionChatModel] Bound tools:', this._boundTools ? `${this._boundTools.length} tools` : 'none');
+    console.log('[FusionChatModel] Requested provider from model:', this.model);
+    console.log('[FusionChatModel] Final provider being sent:', mappedProvider);
     if (body.tools?.length) {
       console.log('[FusionChatModel] Formatted tools being sent:', JSON.stringify(body.tools, null, 2));
     }
