@@ -75,15 +75,35 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     }
 
     if (this._boundTools?.length) {
-      body.tools = this._boundTools;
+      // Convert LangChain tools to OpenAI format
+      const formattedTools = this._boundTools.map((tool: any) => {
+        // If tool has a toJSON method, use it
+        if (typeof tool.toJSON === 'function') {
+          return tool.toJSON();
+        }
+        // If tool has schema property, use it to build OpenAI format
+        if (tool.schema) {
+          return {
+            type: 'function',
+            function: {
+              name: tool.name || tool.schema.name,
+              description: tool.description || tool.schema.description || '',
+              parameters: tool.schema,
+            },
+          };
+        }
+        // Fallback: return as-is (shouldn't happen with proper LangChain tools)
+        return tool;
+      });
+      body.tools = formattedTools;
       body.enable_tools = true;
     }
 
     // DEBUG: Log the request being sent
     console.log('[FusionChatModel] Provider mapping:', provider, '->', mappedProvider);
     console.log('[FusionChatModel] Bound tools:', this._boundTools ? `${this._boundTools.length} tools` : 'none');
-    if (this._boundTools?.length) {
-      console.log('[FusionChatModel] Tool details:', JSON.stringify(this._boundTools, null, 2));
+    if (body.tools?.length) {
+      console.log('[FusionChatModel] Formatted tools being sent:', JSON.stringify(body.tools, null, 2));
     }
     console.log('[FusionChatModel] Full request body:', JSON.stringify(body, null, 2));
 

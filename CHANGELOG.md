@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2025-10-14
+
+### Fixed
+- **LangChain Tool Conversion**: Fixed tool serialization for proper API forwarding
+  - LangChain tools are now converted to OpenAI format before sending
+  - Supports `toJSON()` method and `schema` property extraction
+  - Prevents sending placeholder objects to backend
+  - Ensures tools are properly formatted with `name`, `description`, and `parameters`
+- **Backend Compatibility**: Updated NeuroSwitch `openai_provider.py` to accept multiple tool formats
+  - Accepts OpenAI-native tool format (from n8n)
+  - Supports legacy Anthropic-style format (`input_schema`)
+  - Handles minimal format with `parameters` only
+
 ## [0.2.5] - 2025-10-13
 
 ### Fixed
