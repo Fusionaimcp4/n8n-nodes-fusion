@@ -57,6 +57,10 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
             'google': 'gemini', // Backend expects "gemini" not "google"
         };
         const mappedProvider = providerMap[provider.toLowerCase()] || provider;
+        // Additional debug logging for provider mapping
+        console.log('[FusionChatModel] Original provider:', provider);
+        console.log('[FusionChatModel] Lowercase provider:', provider.toLowerCase());
+        console.log('[FusionChatModel] Mapped provider:', mappedProvider);
         const body = {
             prompt,
             provider: mappedProvider,
@@ -73,10 +77,12 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                 console.log('[DEBUG Tool] schema type:', typeof tool.schema, 'schema value:', tool.schema);
                 // If tool has a toJSON method, use it
                 if (typeof tool.toJSON === 'function') {
-                    return tool.toJSON();
+                    const jsonTool = tool.toJSON();
+                    console.log('[DEBUG Tool] toJSON result:', jsonTool);
+                    return jsonTool;
                 }
                 // Create a simple OpenAI function format
-                return {
+                const formattedTool = {
                     type: 'function',
                     function: {
                         name: tool.name || 'unknown_tool',
@@ -88,6 +94,8 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                         }
                     }
                 };
+                console.log('[DEBUG Tool] Formatted tool:', formattedTool);
+                return formattedTool;
             });
             body.tools = formattedTools;
             body.enable_tools = true;
