@@ -135,8 +135,12 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
             throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
         }
         let data = (await res.json());
-        let text = data?.response?.text ?? '';
-        let toolCalls = data?.response?.tool_calls ?? [];
+        console.log('[FusionChatModel] Initial API response:', JSON.stringify(data, null, 2));
+        // Use response_structured if available, fallback to response
+        let text = data?.response_structured?.text ?? data?.response ?? '';
+        let toolCalls = data?.response_structured?.tool_calls ?? [];
+        console.log('[FusionChatModel] Extracted text:', text);
+        console.log('[FusionChatModel] Extracted tool_calls:', JSON.stringify(toolCalls, null, 2));
         // Tool execution loop
         let maxIterations = 5; // Prevent infinite loops
         let iteration = 0;
@@ -213,8 +217,8 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                     throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
                 }
                 data = (await res.json());
-                text = data?.response?.text ?? '';
-                toolCalls = data?.response?.tool_calls ?? [];
+                text = data?.response_structured?.text ?? data?.response ?? '';
+                toolCalls = data?.response_structured?.tool_calls ?? [];
                 console.log('[FusionChatModel] LLM response after tool execution:', text);
             }
             catch (error) {
