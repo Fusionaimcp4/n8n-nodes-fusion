@@ -1,6 +1,6 @@
 import { INodeType, INodeTypeDescription, NodeConnectionTypes, ILoadOptionsFunctions } from 'n8n-workflow';
 import { BaseChatModel, BaseChatModelCallOptions } from '@langchain/core/language_models/chat_models';
-import { AIMessage, BaseMessage, ToolMessage } from '@langchain/core/messages';
+import { AIMessage, BaseMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
 import fetch from 'node-fetch';
 
@@ -17,7 +17,6 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   get supportsToolChoice(): boolean { return true; }
   get supportsStructuredOutput(): boolean { return true; }
 
-  // Tool binding handled by n8n's AI Agent
   override bindTools(tools: any[]): this {
     this._boundTools = tools;
     return this;
@@ -34,6 +33,14 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   _llmType() { return 'fusion'; }
 
   async _generate(messages: BaseMessage[], _options?: BaseChatModelCallOptions): Promise<ChatResult> {
+    const roleOf = (m: BaseMessage) => {
+      const t = (m as any)?._getType?.() as string | undefined;
+      if (t === 'human') return 'user';
+      if (t === 'ai') return 'assistant';
+      if (t === 'system') return 'system';
+      return t ?? 'user';
+    };
+
     const prompt = messages.map((m) => (m as any).content).join('\n');
 
     // Split provider / model from dropdown
@@ -50,17 +57,9 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       provider = this.model; // Handle legacy "neuroswitch" or other single values
     }
 
-    // Map provider names to match backend API expectations
-    const providerMap: Record<string, string> = {
-      'anthropic': 'claude',
-      'google': 'gemini',
-    };
-    const mappedProvider = providerMap[provider.toLowerCase()] || provider;
-
-    // Initial request body
     const body: Record<string, any> = {
       prompt,
-      provider: mappedProvider,
+      provider,
       temperature: this.options?.temperature ?? 0.3,
       max_tokens: this.options?.maxTokens ?? 1024,
     };
@@ -69,13 +68,11 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       body.model = modelId;
     }
 
-    // Include tools in request if bound
     if (this._boundTools?.length) {
       body.tools = this._boundTools;
       body.enable_tools = true;
     }
 
-    // Make initial API call
     let res: any;
     try {
       res = await fetch(`${this.baseUrl}/api/chat`, {
@@ -87,18 +84,34 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         body: JSON.stringify(body),
       });
     } catch (error: any) {
+      console.error('Fusion API request failed:', error.message);
       throw new Error(`Fusion API request failed: ${error.message}`);
     }
 
     if (!res.ok) {
       const errorText = await res.text().catch(() => 'Unknown error');
+      console.error(`Fusion API error: ${res.status} ${res.statusText}`, errorText);
       throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
     }
 
+    type Tokens = {
+      input_tokens?: number;
+      output_tokens?: number;
+      max_tokens?: number;
+      runtime?: number;
+      total_tokens?: number;
+    };
+    interface FusionResponse {
+      prompt?: string;
+      response?: { text?: string; tool_calls?: any[]; invalid_tool_calls?: any[] } | null;
+      provider?: string;
+      model?: string;
+      tokens?: Tokens;
+      cost_charged_to_credits?: number;
+    }
 
-    const data = await res.json();
-    const text = typeof data?.response === 'string' ? data.response : data?.response?.text ?? '';
-    const toolCalls = data?.response_structured?.tool_calls ?? [];
+    const data = (await res.json()) as FusionResponse;
+    const text = data?.response?.text ?? '';
 
     const message = new AIMessage({
       content: text,
@@ -109,8 +122,8 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         tokens: data?.tokens,
         cost: data?.cost_charged_to_credits,
       },
-      tool_calls: toolCalls,
-      invalid_tool_calls: [],
+      tool_calls: data?.response?.tool_calls ?? [],
+      invalid_tool_calls: data?.response?.invalid_tool_calls ?? [],
     });
 
     const generation: ChatGeneration = {
@@ -121,6 +134,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         provider: data?.provider,
         tokens: data?.tokens,
         cost: data?.cost_charged_to_credits,
+        tool_calls: [],
       },
     };
 

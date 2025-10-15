@@ -13,7 +13,6 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
     get _supportsToolCalling() { return true; }
     get supportsToolChoice() { return true; }
     get supportsStructuredOutput() { return true; }
-    // Tool binding handled by n8n's AI Agent
     bindTools(tools) {
         this._boundTools = tools;
         return this;
@@ -28,6 +27,16 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
     }
     _llmType() { return 'fusion'; }
     async _generate(messages, _options) {
+        const roleOf = (m) => {
+            const t = m?._getType?.();
+            if (t === 'human')
+                return 'user';
+            if (t === 'ai')
+                return 'assistant';
+            if (t === 'system')
+                return 'system';
+            return t ?? 'user';
+        };
         const prompt = messages.map((m) => m.content).join('\n');
         // Split provider / model from dropdown
         let provider = 'neuroswitch';
@@ -42,28 +51,19 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         else if (this.model) {
             provider = this.model; // Handle legacy "neuroswitch" or other single values
         }
-        // Map provider names to match backend API expectations
-        const providerMap = {
-            'anthropic': 'claude',
-            'google': 'gemini',
-        };
-        const mappedProvider = providerMap[provider.toLowerCase()] || provider;
-        // Initial request body
         const body = {
             prompt,
-            provider: mappedProvider,
+            provider,
             temperature: this.options?.temperature ?? 0.3,
             max_tokens: this.options?.maxTokens ?? 1024,
         };
         if (provider !== 'neuroswitch' && modelId) {
             body.model = modelId;
         }
-        // Include tools in request if bound
         if (this._boundTools?.length) {
             body.tools = this._boundTools;
             body.enable_tools = true;
         }
-        // Make initial API call
         let res;
         try {
             res = await (0, node_fetch_1.default)(`${this.baseUrl}/api/chat`, {
@@ -76,15 +76,16 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
             });
         }
         catch (error) {
+            console.error('Fusion API request failed:', error.message);
             throw new Error(`Fusion API request failed: ${error.message}`);
         }
         if (!res.ok) {
             const errorText = await res.text().catch(() => 'Unknown error');
+            console.error(`Fusion API error: ${res.status} ${res.statusText}`, errorText);
             throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
         }
-        const data = await res.json();
-        const text = typeof data?.response === 'string' ? data.response : data?.response?.text ?? '';
-        const toolCalls = data?.response_structured?.tool_calls ?? [];
+        const data = (await res.json());
+        const text = data?.response?.text ?? '';
         const message = new messages_1.AIMessage({
             content: text,
             additional_kwargs: {},
@@ -94,8 +95,8 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                 tokens: data?.tokens,
                 cost: data?.cost_charged_to_credits,
             },
-            tool_calls: toolCalls,
-            invalid_tool_calls: [],
+            tool_calls: data?.response?.tool_calls ?? [],
+            invalid_tool_calls: data?.response?.invalid_tool_calls ?? [],
         });
         const generation = {
             text,
@@ -105,6 +106,7 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                 provider: data?.provider,
                 tokens: data?.tokens,
                 cost: data?.cost_charged_to_credits,
+                tool_calls: [],
             },
         };
         return {
@@ -206,4 +208,4 @@ class FusionChatModel {
     }
 }
 exports.FusionChatModel = FusionChatModel;
-//# sourceMappingURL=FusionChatModel.node.js.map
+//# sourceMappingURL=oldnodesFusionChatModel.node.js.map

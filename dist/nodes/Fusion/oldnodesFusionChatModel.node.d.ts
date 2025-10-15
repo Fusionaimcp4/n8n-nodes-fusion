@@ -37,4 +37,4 @@ export declare class FusionChatModel implements INodeType {
     }>;
 }
 export {};
-//# sourceMappingURL=FusionChatModel.node.d.ts.map
+//# sourceMappingURL=oldnodesFusionChatModel.node.d.ts.map
