@@ -8,7 +8,7 @@ const n8n_workflow_1 = require("n8n-workflow");
 const chat_models_1 = require("@langchain/core/language_models/chat_models");
 const messages_1 = require("@langchain/core/messages");
 const node_fetch_1 = __importDefault(require("node-fetch"));
-// Fusion LangChain chat model with tool-calling surface restored
+// Simplified Fusion LangChain chat model - like Azure OpenAI node
 class FusionLangChainChat extends chat_models_1.BaseChatModel {
     get _supportsToolCalling() { return true; }
     get supportsToolChoice() { return true; }
@@ -100,7 +100,7 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                 };
             });
         }
-        // Initial request body
+        // Request body
         const body = {
             prompt,
             provider: mappedProvider,
@@ -114,8 +114,8 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
             body.tools = formattedTools;
             body.enable_tools = true;
         }
-        console.log('[FusionChatModel] Initial request with tools:', formattedTools?.length || 0);
-        // Make initial API call
+        console.log('[FusionChatModel] Making API request with tools:', formattedTools?.length || 0);
+        // Make API call
         let res;
         try {
             res = await (0, node_fetch_1.default)(`${this.baseUrl}/api/chat`, {
@@ -141,13 +141,13 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         const toolCalls = data?.response_structured?.tool_calls ?? [];
         console.log('[FusionChatModel] Extracted text:', text);
         console.log('[FusionChatModel] Extracted tool_calls:', JSON.stringify(toolCalls, null, 2));
-        // Convert tool_calls to LangChain format for n8n's AI Agent
+        // Convert tool_calls to LangChain format
         const langchainToolCalls = toolCalls.map((toolCall) => ({
+            id: toolCall.id,
             name: toolCall.name,
-            args: toolCall.input || {},
-            id: toolCall.id || `call_${Date.now()}`
+            args: toolCall.input || toolCall.arguments || {},
         }));
-        // Return response with tool_calls for n8n's AI Agent to handle
+        // Return response - let n8n's AI Agent handle tool execution
         const message = new messages_1.AIMessage({
             content: text,
             additional_kwargs: {},
@@ -173,12 +173,6 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         };
         return {
             generations: [generation],
-            llmOutput: {
-                model: data?.model,
-                provider: data?.provider,
-                tokens: data?.tokens,
-                cost: data?.cost_charged_to_credits,
-            },
         };
     }
 }
@@ -190,84 +184,94 @@ class FusionChatModel {
             icon: 'file:fusion.svg',
             group: ['transform'],
             version: 1,
-            subtitle: 'Language Model',
-            description: 'Chat model for Fusion AI (supports tools)',
-            defaults: { name: 'Fusion Chat Model' },
+            description: 'Fusion AI Chat Model with multi-provider support',
+            defaults: {
+                name: 'Fusion Chat Model',
+            },
             inputs: [],
             outputs: [n8n_workflow_1.NodeConnectionTypes.AiLanguageModel],
             outputNames: ['Model'],
-            credentials: [{ name: 'fusionApi', required: true }],
+            credentials: [
+                {
+                    name: 'fusionApi',
+                    required: true,
+                },
+            ],
             properties: [
                 {
                     displayName: 'Model',
                     name: 'model',
                     type: 'options',
-                    typeOptions: {
-                        loadOptionsMethod: 'getModels',
-                    },
                     default: 'neuroswitch',
-                    description: 'Select which model/provider to use',
+                    options: [
+                        {
+                            name: 'NeuroSwitch (Auto)',
+                            value: 'neuroswitch',
+                        },
+                        {
+                            name: 'OpenAI: GPT-4o Mini',
+                            value: 'openai:gpt-4o-mini',
+                        },
+                        {
+                            name: 'OpenAI: GPT-4o',
+                            value: 'openai:gpt-4o',
+                        },
+                        {
+                            name: 'Anthropic: Claude 3.5 Sonnet',
+                            value: 'anthropic:claude-3-5-sonnet-20241022',
+                        },
+                        {
+                            name: 'Google: Gemini 1.5 Pro',
+                            value: 'google:gemini-1.5-pro',
+                        },
+                    ],
+                    description: 'Select the AI model to use',
                 },
                 {
-                    displayName: 'Options',
-                    name: 'options',
-                    type: 'collection',
-                    default: {},
-                    options: [
-                        { displayName: 'Temperature', name: 'temperature', type: 'number', default: 0.3 },
-                        { displayName: 'Max Tokens', name: 'maxTokens', type: 'number', default: 1024 },
-                    ],
+                    displayName: 'Temperature',
+                    name: 'temperature',
+                    type: 'number',
+                    default: 0.3,
+                    typeOptions: {
+                        minValue: 0,
+                        maxValue: 2,
+                        numberStepSize: 0.1,
+                    },
+                    description: 'Controls randomness in the response',
+                },
+                {
+                    displayName: 'Max Tokens',
+                    name: 'maxTokens',
+                    type: 'number',
+                    default: 1024,
+                    typeOptions: {
+                        minValue: 1,
+                        maxValue: 8000,
+                    },
+                    description: 'Maximum number of tokens to generate',
                 },
             ],
         };
-        this.methods = {
-            loadOptions: {
-                async getModels() {
-                    try {
-                        const credentials = await this.getCredentials('fusionApi');
-                        const baseUrl = credentials.baseUrl ?? 'https://api.mcp4.ai';
-                        const res = await this.helpers.httpRequest({
-                            method: 'GET',
-                            url: `${baseUrl}/api/models`,
-                            headers: { Authorization: `ApiKey ${credentials.apiKey}` },
-                        });
-                        const models = (res.data || res);
-                        const modelOptions = models
-                            .filter((m) => m.is_active)
-                            .map((m) => ({
-                            name: `${m.provider}: ${m.name}`,
-                            value: `${m.provider}:${m.id_string}`, // e.g. "openai:gpt-4o-mini"
-                        }));
-                        // Always include NeuroSwitch as the first option
-                        modelOptions.unshift({
-                            name: 'NeuroSwitch (auto routing)',
-                            value: 'neuroswitch'
-                        });
-                        return modelOptions;
-                    }
-                    catch (error) {
-                        console.error('Failed to load Fusion models:', error.message);
-                        // Return fallback options
-                        return [
-                            { name: 'NeuroSwitch (auto routing)', value: 'neuroswitch' },
-                            { name: 'OpenAI: GPT-4', value: 'openai:gpt-4' },
-                            { name: 'Anthropic: Claude 3 Sonnet', value: 'anthropic:claude-3-sonnet' },
-                            { name: 'Google: Gemini Pro', value: 'google:gemini-pro' },
-                        ];
-                    }
-                },
-            },
-        };
     }
     async supplyData(itemIndex) {
-        const credentials = await this.getCredentials('fusionApi');
-        const baseUrl = credentials.baseUrl ?? credentials.url ?? 'https://api.mcp4.ai';
-        const apiKey = credentials.apiKey;
         const model = this.getNodeParameter('model', itemIndex);
-        const options = this.getNodeParameter('options', itemIndex, {});
-        const fusionModel = new FusionLangChainChat({ model, options, apiKey, baseUrl });
-        return { response: fusionModel };
+        const temperature = this.getNodeParameter('temperature', itemIndex);
+        const maxTokens = this.getNodeParameter('maxTokens', itemIndex);
+        const credentials = await this.getCredentials('fusionApi');
+        const apiKey = credentials.apiKey;
+        const baseUrl = credentials.baseUrl || 'https://api.mcp4.ai';
+        console.log(`[FusionChatModel] Instantiating Fusion model: ${model}`);
+        const fusionModel = new FusionLangChainChat({
+            model,
+            options: { temperature, maxTokens },
+            apiKey,
+            baseUrl,
+        });
+        console.log(`[FusionChatModel] Fusion model initialized: ${model}`);
+        return {
+            response: fusionModel,
+        };
     }
 }
 exports.FusionChatModel = FusionChatModel;
-//# sourceMappingURL=FusionChatModel.node.js.map
+//# sourceMappingURL=FusionChatModel_simplified.node.js.map

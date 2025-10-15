@@ -168,118 +168,24 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       cost_charged_to_credits?: number;
     }
 
-    let data = (await res.json()) as FusionResponse;
-    console.log('[FusionChatModel] Initial API response:', JSON.stringify(data, null, 2));
+    const data = (await res.json()) as FusionResponse;
+    console.log('[FusionChatModel] API response:', JSON.stringify(data, null, 2));
     
     // Use response_structured if available, fallback to response
-    let text = data?.response_structured?.text ?? data?.response ?? '';
-    let toolCalls = data?.response_structured?.tool_calls ?? [];
+    const text = data?.response_structured?.text ?? data?.response ?? '';
+    const toolCalls = data?.response_structured?.tool_calls ?? [];
     
     console.log('[FusionChatModel] Extracted text:', text);
     console.log('[FusionChatModel] Extracted tool_calls:', JSON.stringify(toolCalls, null, 2));
 
-    // Tool execution loop
-    let maxIterations = 5; // Prevent infinite loops
-    let iteration = 0;
-    
-    while (toolCalls.length > 0 && this._boundTools && iteration < maxIterations) {
-      iteration++;
-      console.log(`[FusionChatModel] Tool execution iteration ${iteration}, ${toolCalls.length} tool calls`);
-      
-      // Execute each tool call
-      const toolResults: any[] = [];
-      for (const toolCall of toolCalls) {
-        const toolName = toolCall.name || toolCall.function?.name;
-        const toolInput = toolCall.input || toolCall.function?.arguments || toolCall.arguments || {};
-        const toolCallId = toolCall.id || `call_${Date.now()}`;
-        
-        console.log(`[FusionChatModel] Executing tool: ${toolName} with input:`, toolInput);
-        
-        // Find the matching tool
-        const tool = this._boundTools.find((t: any) => t.name === toolName);
-        
-        if (tool && typeof tool.invoke === 'function') {
-          try {
-            // Execute the tool
-            const result = await tool.invoke(toolInput);
-            console.log(`[FusionChatModel] Tool ${toolName} result:`, result);
-            
-            toolResults.push({
-              role: 'tool',
-              tool_call_id: toolCallId,
-              name: toolName,
-              content: typeof result === 'string' ? result : JSON.stringify(result)
-            });
-          } catch (error: any) {
-            console.error(`[FusionChatModel] Tool ${toolName} execution error:`, error.message);
-            toolResults.push({
-              role: 'tool',
-              tool_call_id: toolCallId,
-              name: toolName,
-              content: `Error: ${error.message}`
-            });
-          }
-        } else {
-          console.error(`[FusionChatModel] Tool ${toolName} not found or not invokable`);
-          toolResults.push({
-            role: 'tool',
-            tool_call_id: toolCallId,
-            name: toolName,
-            content: `Error: Tool ${toolName} not found`
-          });
-        }
-      }
-      
-      // Send tool results back to the LLM
-      const followUpBody: Record<string, any> = {
-        prompt: `Tool results: ${JSON.stringify(toolResults)}`,
-        provider: mappedProvider,
-        temperature: this.options?.temperature ?? 0.3,
-        max_tokens: this.options?.maxTokens ?? 1024,
-      };
+    // Convert tool_calls to LangChain format for n8n's AI Agent
+    const langchainToolCalls = toolCalls.map((toolCall: any) => ({
+      name: toolCall.name,
+      args: toolCall.input || {},
+      id: toolCall.id || `call_${Date.now()}`
+    }));
 
-      if (provider !== 'neuroswitch' && modelId) {
-        followUpBody.model = modelId;
-      }
-
-      if (formattedTools?.length) {
-        followUpBody.tools = formattedTools;
-        followUpBody.enable_tools = true;
-      }
-
-      console.log('[FusionChatModel] Sending tool results back to LLM');
-      
-      try {
-        res = await fetch(`${this.baseUrl}/api/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `ApiKey ${this.apiKey}`,
-          },
-          body: JSON.stringify(followUpBody),
-        });
-        
-        if (!res.ok) {
-          const errorText = await res.text().catch(() => 'Unknown error');
-          throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
-        }
-        
-        data = (await res.json()) as FusionResponse;
-        text = data?.response_structured?.text ?? data?.response ?? '';
-        toolCalls = data?.response_structured?.tool_calls ?? [];
-        
-        console.log('[FusionChatModel] LLM response after tool execution:', text);
-      } catch (error: any) {
-        console.error('[FusionChatModel] Error sending tool results:', error.message);
-        break;
-      }
-    }
-
-    if (iteration >= maxIterations) {
-      console.warn('[FusionChatModel] Max tool execution iterations reached');
-    }
-
-    // Return final response
+    // Return response with tool_calls for n8n's AI Agent to handle
     const message = new AIMessage({
       content: text,
       additional_kwargs: {},
@@ -289,7 +195,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         tokens: data?.tokens,
         cost: data?.cost_charged_to_credits,
       },
-      tool_calls: [],
+      tool_calls: langchainToolCalls,
       invalid_tool_calls: [],
     });
 
@@ -301,7 +207,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         provider: data?.provider,
         tokens: data?.tokens,
         cost: data?.cost_charged_to_credits,
-        tool_calls: [],
+        tool_calls: langchainToolCalls,
       },
     };
 
