@@ -139,8 +139,8 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     const data = await res.json();
     console.log('[FusionChatModel] Raw response from Fusion backend:', JSON.stringify(data, null, 2));
     
-    const text = data?.response_structured?.text ?? data?.response ?? '';
-    const rawToolCalls = data?.response_structured?.tool_calls ?? [];
+    const text = data?.response?.text ?? '';
+    const rawToolCalls = data?.response?.tool_calls ?? [];
     
     console.log('[FusionChatModel] Raw tool calls from Fusion:', JSON.stringify(rawToolCalls, null, 2));
     

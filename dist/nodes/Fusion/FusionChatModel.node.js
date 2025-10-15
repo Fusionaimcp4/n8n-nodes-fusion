@@ -119,8 +119,17 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
             throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
         }
         const data = await res.json();
-        const text = data?.response_structured?.text ?? data?.response ?? '';
-        const toolCalls = data?.response_structured?.tool_calls ?? [];
+        console.log('[FusionChatModel] Raw response from Fusion backend:', JSON.stringify(data, null, 2));
+        const text = data?.response?.text ?? '';
+        const rawToolCalls = data?.response?.tool_calls ?? [];
+        console.log('[FusionChatModel] Raw tool calls from Fusion:', JSON.stringify(rawToolCalls, null, 2));
+        // Convert NeuroSwitch format to LangChain format
+        const convertedToolCalls = rawToolCalls.map((toolCall) => ({
+            id: toolCall.id,
+            name: toolCall.name,
+            args: toolCall.input || {}
+        }));
+        console.log('[FusionChatModel] Converted tool calls for LangChain:', JSON.stringify(convertedToolCalls, null, 2));
         const message = new messages_1.AIMessage({
             content: text,
             additional_kwargs: {},
@@ -130,7 +139,7 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                 tokens: data?.tokens,
                 cost: data?.cost_charged_to_credits,
             },
-            tool_calls: toolCalls,
+            tool_calls: convertedToolCalls,
             invalid_tool_calls: [],
         });
         const generation = {
