@@ -65,6 +65,43 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
     _llmType() { return 'fusion'; }
     async _generate(messages, _options) {
         const prompt = messages.map((m) => m.content).join('\n');
+        // Map LangChain messages to provider-neutral history
+        function mapToHistory(m) {
+            const t = m._getType?.() ||
+                m.type ||
+                m.constructor.name;
+            if (t === 'system' || t === 'SystemMessage') {
+                return { role: 'system', content: m.content ?? '' };
+            }
+            if (t === 'human' || t === 'HumanMessage') {
+                return { role: 'user', content: m.content ?? '' };
+            }
+            if (t === 'ai' || t === 'AIMessage') {
+                // preserve assistant tool calls so provider can pair the result on next turn
+                const tc = m.tool_calls || [];
+                return {
+                    role: 'assistant',
+                    content: m.content ?? '',
+                    tool_calls: tc,
+                };
+            }
+            if (t === 'tool' || t === 'ToolMessage') {
+                // MUST match the assistant.tool_calls[i].id from the previous turn
+                const toolCallId = m.tool_call_id ||
+                    m.additional_kwargs?.tool_call_id ||
+                    m.name || '';
+                return {
+                    role: 'tool',
+                    tool_call_id: toolCallId,
+                    name: m.name || 'tool',
+                    content: m.content ?? '',
+                };
+            }
+            // fallback
+            return { role: 'user', content: m.content ?? '' };
+        }
+        const history = messages.map(mapToHistory);
+        console.log('[FusionChatModel] Outgoing history:', JSON.stringify(history, null, 2));
         // Split provider / model from dropdown
         let provider = 'neuroswitch';
         let modelId = undefined;
@@ -90,6 +127,7 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
             provider: mappedProvider,
             temperature: this.options?.temperature ?? 0.3,
             max_tokens: this.options?.maxTokens ?? 1024,
+            history,
         };
         if (provider !== 'neuroswitch' && modelId) {
             body.model = modelId;
