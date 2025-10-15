@@ -137,8 +137,21 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
 
 
     const data = await res.json();
-    const text = typeof data?.response === 'string' ? data.response : data?.response?.text ?? '';
-    const toolCalls = data?.response_structured?.tool_calls ?? [];
+    console.log('[FusionChatModel] Raw response from Fusion backend:', JSON.stringify(data, null, 2));
+    
+    const text = data?.response_structured?.text ?? data?.response ?? '';
+    const rawToolCalls = data?.response_structured?.tool_calls ?? [];
+    
+    console.log('[FusionChatModel] Raw tool calls from Fusion:', JSON.stringify(rawToolCalls, null, 2));
+    
+    // Convert NeuroSwitch format to LangChain format
+    const convertedToolCalls = rawToolCalls.map((toolCall: any) => ({
+      id: toolCall.id,
+      name: toolCall.name,
+      args: toolCall.input || {}
+    }));
+    
+    console.log('[FusionChatModel] Converted tool calls for LangChain:', JSON.stringify(convertedToolCalls, null, 2));
 
     const message = new AIMessage({
       content: text,
@@ -149,7 +162,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         tokens: data?.tokens,
         cost: data?.cost_charged_to_credits,
       },
-      tool_calls: toolCalls,
+      tool_calls: convertedToolCalls,
       invalid_tool_calls: [],
     });
 

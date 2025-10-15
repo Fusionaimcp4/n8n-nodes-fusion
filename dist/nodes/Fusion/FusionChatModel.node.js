@@ -119,7 +119,7 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
             throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
         }
         const data = await res.json();
-        const text = typeof data?.response === 'string' ? data.response : data?.response?.text ?? '';
+        const text = data?.response_structured?.text ?? data?.response ?? '';
         const toolCalls = data?.response_structured?.tool_calls ?? [];
         const message = new messages_1.AIMessage({
             content: text,
