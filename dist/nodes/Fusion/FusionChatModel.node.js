@@ -16,14 +16,42 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
     // Tool binding handled by n8n's AI Agent
     bindTools(tools) {
         // Convert LangChain tools to OpenAI format
-        this._boundTools = tools.map(tool => ({
-            type: 'function',
-            function: {
-                name: tool.name,
-                description: tool.description,
-                parameters: tool.schema
+        this._boundTools = tools.map(tool => {
+            // Get schema from tool
+            const schema = tool.schema?._def;
+            // Convert Zod schema to JSON Schema
+            const properties = {};
+            const required = [];
+            if (schema?.shape) {
+                Object.entries(schema.shape()).forEach(([key, field]) => {
+                    const fieldDef = field?._def;
+                    if (fieldDef) {
+                        properties[key] = {
+                            type: fieldDef.typeName === 'ZodString' ? 'string' :
+                                fieldDef.typeName === 'ZodNumber' ? 'number' :
+                                    fieldDef.typeName === 'ZodBoolean' ? 'boolean' : 'string',
+                            description: field.description || ''
+                        };
+                        // Add to required if not optional
+                        if (!field.isOptional || !field.isOptional()) {
+                            required.push(key);
+                        }
+                    }
+                });
             }
-        }));
+            return {
+                type: 'function',
+                function: {
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: {
+                        type: 'object',
+                        properties,
+                        required
+                    }
+                }
+            };
+        });
         return this;
     }
     constructor(args) {

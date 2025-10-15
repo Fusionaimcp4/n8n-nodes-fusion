@@ -20,14 +20,46 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   // Tool binding handled by n8n's AI Agent
   override bindTools(tools: any[]): this {
     // Convert LangChain tools to OpenAI format
-    this._boundTools = tools.map(tool => ({
-      type: 'function',
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.schema
+    this._boundTools = tools.map(tool => {
+      // Get schema from tool
+      const schema = tool.schema?._def;
+      
+      // Convert Zod schema to JSON Schema
+      const properties: Record<string, any> = {};
+      const required: string[] = [];
+
+      if (schema?.shape) {
+        Object.entries(schema.shape()).forEach(([key, field]: [string, any]) => {
+          const fieldDef = field?._def;
+          if (fieldDef) {
+            properties[key] = {
+              type: fieldDef.typeName === 'ZodString' ? 'string' :
+                    fieldDef.typeName === 'ZodNumber' ? 'number' :
+                    fieldDef.typeName === 'ZodBoolean' ? 'boolean' : 'string',
+              description: field.description || ''
+            };
+            
+            // Add to required if not optional
+            if (!field.isOptional || !field.isOptional()) {
+              required.push(key);
+            }
+          }
+        });
       }
-    }));
+
+      return {
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: {
+            type: 'object',
+            properties,
+            required
+          }
+        }
+      };
+    });
     return this;
   }
 
