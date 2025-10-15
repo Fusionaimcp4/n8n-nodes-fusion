@@ -15,7 +15,15 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
     get supportsStructuredOutput() { return true; }
     // Tool binding handled by n8n's AI Agent
     bindTools(tools) {
-        this._boundTools = tools;
+        // Convert LangChain tools to OpenAI format
+        this._boundTools = tools.map(tool => ({
+            type: 'function',
+            function: {
+                name: tool.name,
+                description: tool.description,
+                parameters: tool.schema
+            }
+        }));
         return this;
     }
     constructor(args) {

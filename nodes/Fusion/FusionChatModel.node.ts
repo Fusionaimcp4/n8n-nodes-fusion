@@ -19,7 +19,15 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
 
   // Tool binding handled by n8n's AI Agent
   override bindTools(tools: any[]): this {
-    this._boundTools = tools;
+    // Convert LangChain tools to OpenAI format
+    this._boundTools = tools.map(tool => ({
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.schema
+      }
+    }));
     return this;
   }
 
