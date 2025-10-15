@@ -84,43 +84,11 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       throw new Error(`Fusion API error: ${res.status} ${res.statusText} - ${errorText}`);
     }
 
-    type Tokens = {
-      input_tokens?: number;
-      output_tokens?: number;
-      max_tokens?: number;
-      runtime?: number;
-      total_tokens?: number;
-    };
-    interface FusionResponse {
-      prompt?: string;
-      response?: string;  // Old format (string)
-      response_structured?: { text?: string; tool_calls?: any[]; invalid_tool_calls?: any[] } | null;
-      tool_calls?: any[];  // Tool calls at root level
-      provider?: string;
-      model?: string;
-      tokens?: Tokens;
-      cost_charged_to_credits?: number;
-    }
 
-    const data = (await res.json()) as FusionResponse;
-    console.log('[FusionChatModel] API response:', JSON.stringify(data, null, 2));
-    
-    // Extract text and tool_calls from response_structured
-    const text = data?.response ?? '';
+    const data = await res.json();
+    const text = typeof data?.response === 'string' ? data.response : data?.response?.text ?? '';
     const toolCalls = data?.response_structured?.tool_calls ?? [];
-    
-    console.log('[FusionChatModel] Extracted text:', text);
-    console.log('[FusionChatModel] Extracted tool_calls:', JSON.stringify(toolCalls, null, 2));
-    console.log('[FusionChatModel] Raw response_structured:', JSON.stringify(data?.response_structured, null, 2));
 
-    // Convert tool_calls to LangChain format for n8n's AI Agent
-    const langchainToolCalls = toolCalls.map((toolCall: any) => ({
-      name: toolCall.name,
-      args: toolCall.input || {},
-      id: toolCall.id || `call_${Date.now()}`
-    }));
-
-    // Return response with tool_calls for n8n's AI Agent to handle
     const message = new AIMessage({
       content: text,
       additional_kwargs: {},
@@ -130,7 +98,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         tokens: data?.tokens,
         cost: data?.cost_charged_to_credits,
       },
-      tool_calls: langchainToolCalls,
+      tool_calls: toolCalls,
       invalid_tool_calls: [],
     });
 
@@ -142,7 +110,6 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         provider: data?.provider,
         tokens: data?.tokens,
         cost: data?.cost_charged_to_credits,
-        tool_calls: langchainToolCalls,
       },
     };
 
