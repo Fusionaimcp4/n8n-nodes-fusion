@@ -7,12 +7,10 @@ declare class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions
     private options;
     private apiKey;
     private baseUrl;
-    private _boundTools?;
     supportsToolCalling: boolean;
     get _supportsToolCalling(): boolean;
     get supportsToolChoice(): boolean;
     get supportsStructuredOutput(): boolean;
-    bindTools(tools: any[]): this;
     constructor(args: {
         model: string;
         options: any;

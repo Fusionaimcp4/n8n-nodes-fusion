@@ -10,17 +10,13 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   private options: any;
   private apiKey: string;
   private baseUrl: string;
-  private _boundTools?: any[];
 
   public supportsToolCalling = true;
   get _supportsToolCalling(): boolean { return true; }
   get supportsToolChoice(): boolean { return true; }
   get supportsStructuredOutput(): boolean { return true; }
 
-  override bindTools(tools: any[]): this {
-    this._boundTools = tools;
-    return this;
-  }
+  // Tool binding handled by n8n's AI Agent
 
   constructor(args: { model: string; options: any; apiKey: string; baseUrl: string }) {
     super({});
@@ -56,62 +52,6 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     };
     const mappedProvider = providerMap[provider.toLowerCase()] || provider;
 
-    // Format tools for the request
-    let formattedTools: any[] | undefined;
-    if (this._boundTools?.length) {
-      formattedTools = this._boundTools.map((tool: any) => {
-        let parameters: any = {
-          type: 'object',
-          properties: {},
-          required: []
-        };
-        
-        if (tool.schema && typeof tool.schema === 'object') {
-          try {
-            const zodToJsonSchema = require('zod-to-json-schema');
-            parameters = zodToJsonSchema.zodToJsonSchema(tool.schema);
-          } catch (error: any) {
-            // Fallback schema extraction
-            if (tool.schema._def && tool.schema._def.shape) {
-              const shape = tool.schema._def.shape();
-              const properties: any = {};
-              const required: string[] = [];
-              
-              Object.keys(shape).forEach((key) => {
-                const field = shape[key];
-                if (field && field._def) {
-                  let type = 'string';
-                  if (field._def.typeName === 'ZodString') type = 'string';
-                  else if (field._def.typeName === 'ZodNumber') type = 'number';
-                  else if (field._def.typeName === 'ZodBoolean') type = 'boolean';
-                  
-                  properties[key] = {
-                    type,
-                    description: field.description || field._def.description || ''
-                  };
-                  
-                  if (!field.isOptional || !field.isOptional()) {
-                    required.push(key);
-                  }
-                }
-              });
-              
-              parameters = { type: 'object', properties, required };
-            }
-          }
-        }
-        
-        return {
-          type: 'function',
-          function: {
-            name: tool.name || 'unknown_tool',
-            description: tool.description || 'A tool function',
-            parameters
-          }
-        };
-      });
-    }
-
     // Initial request body
     const body: Record<string, any> = {
       prompt,
@@ -123,13 +63,6 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     if (provider !== 'neuroswitch' && modelId) {
       body.model = modelId;
     }
-
-    if (formattedTools?.length) {
-      body.tools = formattedTools;
-      body.enable_tools = true;
-    }
-
-    console.log('[FusionChatModel] Initial request with tools:', formattedTools?.length || 0);
 
     // Make initial API call
     let res: any;
@@ -162,6 +95,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       prompt?: string;
       response?: string;  // Old format (string)
       response_structured?: { text?: string; tool_calls?: any[]; invalid_tool_calls?: any[] } | null;
+      tool_calls?: any[];  // Tool calls at root level
       provider?: string;
       model?: string;
       tokens?: Tokens;
@@ -171,12 +105,13 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     const data = (await res.json()) as FusionResponse;
     console.log('[FusionChatModel] API response:', JSON.stringify(data, null, 2));
     
-    // Use response_structured if available, fallback to response
-    const text = data?.response_structured?.text ?? data?.response ?? '';
+    // Extract text and tool_calls from response_structured
+    const text = data?.response ?? '';
     const toolCalls = data?.response_structured?.tool_calls ?? [];
     
     console.log('[FusionChatModel] Extracted text:', text);
     console.log('[FusionChatModel] Extracted tool_calls:', JSON.stringify(toolCalls, null, 2));
+    console.log('[FusionChatModel] Raw response_structured:', JSON.stringify(data?.response_structured, null, 2));
 
     // Convert tool_calls to LangChain format for n8n's AI Agent
     const langchainToolCalls = toolCalls.map((toolCall: any) => ({
