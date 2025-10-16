@@ -76,53 +76,6 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   async _generate(messages: BaseMessage[], _options?: BaseChatModelCallOptions): Promise<ChatResult> {
     const prompt = messages.map((m) => (m as any).content).join('\n');
 
-    // Map LangChain messages to provider-neutral history
-    function mapToHistory(m: BaseMessage) {
-      const t =
-        (m as any)._getType?.() ||
-        (m as any).type ||
-        m.constructor.name;
-
-      if (t === 'system' || t === 'SystemMessage') {
-        return { role: 'system', content: (m as any).content ?? '' };
-      }
-
-      if (t === 'human' || t === 'HumanMessage') {
-        return { role: 'user', content: (m as any).content ?? '' };
-      }
-
-      if (t === 'ai' || t === 'AIMessage') {
-        // preserve assistant tool calls so provider can pair the result on next turn
-        const tc = (m as any).tool_calls || [];
-        return {
-          role: 'assistant',
-          content: (m as any).content ?? '',
-          tool_calls: tc,
-        };
-      }
-
-      if (t === 'tool' || t === 'ToolMessage') {
-        // MUST match the assistant.tool_calls[i].id from the previous turn
-        const toolCallId =
-          (m as any).tool_call_id ||
-          (m as any).additional_kwargs?.tool_call_id ||
-          (m as any).name || '';
-
-        return {
-          role: 'tool',
-          tool_call_id: toolCallId,
-          name: (m as any).name || 'tool',
-          content: (m as any).content ?? '',
-        };
-      }
-
-      // fallback
-      return { role: 'user', content: (m as any).content ?? '' };
-    }
-
-    const history = messages.map(mapToHistory);
-    console.log('[FusionChatModel] Outgoing history:', JSON.stringify(history, null, 2));
-
     // Split provider / model from dropdown
     let provider = 'neuroswitch';
     let modelId: string | undefined = undefined;
@@ -150,7 +103,6 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       provider: mappedProvider,
       temperature: this.options?.temperature ?? 0.3,
       max_tokens: this.options?.maxTokens ?? 1024,
-      history,
     };
 
     if (provider !== 'neuroswitch' && modelId) {
@@ -196,7 +148,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     const convertedToolCalls = rawToolCalls.map((toolCall: any) => ({
       id: toolCall.id,
       name: toolCall.name,
-      args: toolCall.input || {}
+      arguments: toolCall.args || toolCall.input || {}
     }));
     
     console.log('[FusionChatModel] Converted tool calls for LangChain:', JSON.stringify(convertedToolCalls, null, 2));
