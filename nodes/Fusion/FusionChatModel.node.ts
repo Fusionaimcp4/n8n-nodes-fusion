@@ -144,14 +144,10 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     
     console.log('[FusionChatModel] Raw tool calls from Fusion:', JSON.stringify(rawToolCalls, null, 2));
     
-    // Convert NeuroSwitch format to LangChain format
-    const convertedToolCalls = rawToolCalls.map((toolCall: any) => ({
-      id: toolCall.id,
-      name: toolCall.name,
-      arguments: toolCall.args || toolCall.input || {}
-    }));
+    // Fusion backend already sends the correct LangChain format
+    const convertedToolCalls = rawToolCalls;
     
-    console.log('[FusionChatModel] Converted tool calls for LangChain:', JSON.stringify(convertedToolCalls, null, 2));
+    console.log('[FusionChatModel] Tool calls for LangChain:', JSON.stringify(convertedToolCalls, null, 2));
 
     const message = new AIMessage({
       content: text,
