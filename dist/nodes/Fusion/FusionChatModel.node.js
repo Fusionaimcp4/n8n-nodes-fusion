@@ -97,8 +97,11 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         if (provider !== 'neuroswitch' && modelId) {
             body.model = modelId;
         }
-        // Include tools in request if bound
-        if (this._boundTools?.length) {
+        // Only include tools if this is NOT a tool result callback
+        // Check if message contains tool results (like [{"type":"text","text":"15"}])
+        const hasToolResults = prompt.includes('[{"type":"text","text":"') ||
+            prompt.includes('Error POSTing to endpoint');
+        if (this._boundTools?.length && !hasToolResults) {
             body.tools = this._boundTools;
             body.enable_tools = true;
         }
