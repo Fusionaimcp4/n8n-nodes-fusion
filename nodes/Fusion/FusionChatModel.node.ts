@@ -11,6 +11,8 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   private apiKey: string;
   private baseUrl: string;
   private _boundTools?: any[];
+  private timeout: number;
+  private maxRetries: number;
 
   public supportsToolCalling = true;
   get _supportsToolCalling(): boolean { return true; }
@@ -69,6 +71,10 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     this.options = args.options;
     this.apiKey = args.apiKey;
     this.baseUrl = args.baseUrl;
+    
+    // Match Azure OpenAI defaults
+    this.timeout = args.options?.timeout ?? 60000; // 60 seconds
+    this.maxRetries = args.options?.maxRetries ?? 2; // 2 retries
   }
 
   _llmType() { return 'fusion'; }
@@ -115,19 +121,32 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       body.enable_tools = true;
     }
 
-    // Make initial API call
+    // Make API call with timeout and retry (matching LangChain behavior)
     let res: any;
-    try {
-      res = await fetch(`${this.baseUrl}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `ApiKey ${this.apiKey}`,
-        },
-        body: JSON.stringify(body),
-      });
-    } catch (error: any) {
-      throw new Error(`Fusion API request failed: ${error.message}`);
+    let lastError: any;
+
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        res = await fetch(`${this.baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `ApiKey ${this.apiKey}`,
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(this.timeout)
+        });
+        
+        if (res.ok) break; // Success, exit retry loop
+        
+      } catch (error: any) {
+        lastError = error;
+        if (attempt === this.maxRetries) throw error; // Final attempt failed
+        
+        // Simple exponential backoff: 1s, 2s, 4s
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
 
     if (!res.ok) {
@@ -273,7 +292,16 @@ export class FusionChatModel implements INodeType {
     const model = this.getNodeParameter('model', itemIndex) as string;
     const options = this.getNodeParameter('options', itemIndex, {});
 
-    const fusionModel = new FusionLangChainChat({ model, options, apiKey, baseUrl });
+    const fusionModel = new FusionLangChainChat({ 
+      model, 
+      options: {
+        ...options,
+        timeout: options.timeout ?? 60000,
+        maxRetries: options.maxRetries ?? 2
+      }, 
+      apiKey, 
+      baseUrl 
+    });
 
     return { response: fusionModel };
   }

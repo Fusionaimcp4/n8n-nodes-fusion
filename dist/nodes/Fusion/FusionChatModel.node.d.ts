@@ -8,6 +8,8 @@ declare class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions
     private apiKey;
     private baseUrl;
     private _boundTools?;
+    private timeout;
+    private maxRetries;
     supportsToolCalling: boolean;
     get _supportsToolCalling(): boolean;
     get supportsToolChoice(): boolean;
