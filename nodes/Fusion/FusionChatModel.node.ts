@@ -185,6 +185,34 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       invalid_tool_calls: [],
     });
 
+    // Diagnostic logging to identify tool call structure issues
+    console.log('[FusionChatModel] AIMessage created');
+    console.log('[FusionChatModel] tool_calls type:', typeof message.tool_calls);
+    console.log('[FusionChatModel] tool_calls instanceof Array:', Array.isArray(message.tool_calls));
+    console.log('[FusionChatModel] tool_calls constructor:', message.tool_calls?.constructor?.name);
+    console.log('[FusionChatModel] tool_calls length:', message.tool_calls?.length);
+    
+    if (message.tool_calls?.length) {
+      const tc = message.tool_calls[0];
+      console.log('[FusionChatModel] First tool_call:', tc);
+      console.log('[FusionChatModel] tool_call constructor:', tc?.constructor?.name);
+      console.log('[FusionChatModel] tool_call keys:', Object.keys(tc || {}));
+      console.log('[FusionChatModel] args type:', typeof tc?.args);
+      console.log('[FusionChatModel] args constructor:', tc?.args?.constructor?.name);
+      console.log('[FusionChatModel] args instanceof Object:', tc?.args instanceof Object);
+      console.log('[FusionChatModel] args prototype:', Object.getPrototypeOf(tc?.args));
+      console.log('[FusionChatModel] args keys:', Object.keys(tc?.args || {}));
+      console.log('[FusionChatModel] args JSON:', JSON.stringify(tc?.args, null, 2));
+      
+      // Compare with raw input
+      if (convertedToolCalls?.length) {
+        const rawTc = convertedToolCalls[0];
+        console.log('[FusionChatModel] Raw tool_call args type:', typeof rawTc?.args);
+        console.log('[FusionChatModel] Raw tool_call args constructor:', rawTc?.args?.constructor?.name);
+        console.log('[FusionChatModel] Args changed after AIMessage?', tc?.args !== rawTc?.args);
+      }
+    }
+
     const generation: ChatGeneration = {
       text,
       message,
