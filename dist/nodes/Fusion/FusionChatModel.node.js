@@ -141,9 +141,15 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         const rawToolCalls = data?.response?.tool_calls ?? [];
         console.log('[FusionChatModel] Raw tool calls from Fusion:', JSON.stringify(rawToolCalls, null, 2));
         // Transform LangChain format ({ id, name, args }) to n8n's expected format
-        // n8n's AI Agent expects OpenAI-style: { id, type: "function", function: { name, arguments } }
+        // n8n's AI Agent needs BOTH:
+        // - args: for AI Agent planner/router logic
+        // - function.arguments: for tool executor
         const convertedToolCalls = rawToolCalls.map((tc) => ({
+            // n8n AI Agent needs this
             id: tc.id,
+            name: tc.name,
+            args: tc.args ?? {},
+            // n8n Tool Executor needs this
             type: 'function',
             function: {
                 name: tc.name,
