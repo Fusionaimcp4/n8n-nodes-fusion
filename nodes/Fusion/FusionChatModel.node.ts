@@ -11,6 +11,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   private apiKey: string;
   private baseUrl: string;
   private _boundTools?: any[];
+  private _toolAllowedKeys?: Map<string, string[]>; // Store allowed keys per tool name
   private timeout: number;
   private maxRetries: number;
 
@@ -21,6 +22,9 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
 
   // Tool binding handled by n8n's AI Agent
   override bindTools(tools: any[]): this {
+    // Initialize map to store allowed keys per tool
+    this._toolAllowedKeys = new Map<string, string[]>();
+    
     // Convert LangChain tools to OpenAI format
     this._boundTools = tools.map(tool => {
       // Get schema from tool
@@ -29,11 +33,13 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       // Convert Zod schema to JSON Schema
       const properties: Record<string, any> = {};
       const required: string[] = [];
+      const allowedKeys: string[] = [];
 
       if (schema?.shape) {
         Object.entries(schema.shape()).forEach(([key, field]: [string, any]) => {
           const fieldDef = field?._def;
           if (fieldDef) {
+            allowedKeys.push(key); // Capture allowed key
             properties[key] = {
               type: fieldDef.typeName === 'ZodString' ? 'string' :
                     fieldDef.typeName === 'ZodNumber' ? 'number' :
@@ -47,6 +53,11 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
             }
           }
         });
+      }
+
+      // Store allowed keys for this tool name
+      if (tool.name && allowedKeys.length > 0 && this._toolAllowedKeys) {
+        this._toolAllowedKeys.set(tool.name, allowedKeys);
       }
 
       return {
@@ -171,18 +182,41 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     // n8n's AI Agent needs BOTH:
     // - args: for AI Agent planner/router logic
     // - function.arguments: for tool executor
-    const convertedToolCalls = rawToolCalls.map((tc: any) => ({
-      // n8n AI Agent needs this
-      id: tc.id,
-      name: tc.name,
-      args: tc.args ?? {},
-      // n8n Tool Executor needs this
-      type: 'function',
-      function: {
+    // Filter args to only include allowed keys from tool schema
+    const convertedToolCalls = rawToolCalls.map((tc: any) => {
+      const rawArgs = tc.args ?? {};
+      let filteredArgs = rawArgs;
+      
+      // Filter args to only include allowed keys from tool schema
+      if (tc.name && this._toolAllowedKeys?.has(tc.name)) {
+        const allowedKeys = this._toolAllowedKeys.get(tc.name)!;
+        filteredArgs = Object.keys(rawArgs)
+          .filter(key => allowedKeys.includes(key))
+          .reduce((obj: any, key) => {
+            obj[key] = rawArgs[key];
+            return obj;
+          }, {});
+        
+        console.log(`[FusionChatModel] Filtered args for ${tc.name}:`, {
+          original: Object.keys(rawArgs),
+          allowed: allowedKeys,
+          filtered: Object.keys(filteredArgs)
+        });
+      }
+      
+      return {
+        // n8n AI Agent needs this
+        id: tc.id,
         name: tc.name,
-        arguments: tc.args ?? {},
-      },
-    }));
+        args: filteredArgs,
+        // n8n Tool Executor needs this
+        type: 'function',
+        function: {
+          name: tc.name,
+          arguments: filteredArgs,
+        },
+      };
+    });
     
     console.log('[FusionChatModel] Tool calls converted for n8n:', JSON.stringify(convertedToolCalls, null, 2));
 
