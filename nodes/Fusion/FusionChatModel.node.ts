@@ -35,7 +35,17 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       const required: string[] = [];
       const allowedKeys: string[] = [];
 
-      if (schema?.shape) {
+      // Try to get keys from tool.parameters first (if it's already a JSON Schema)
+      if (tool.parameters?.properties && typeof tool.parameters.properties === 'object') {
+        Object.keys(tool.parameters.properties).forEach(key => {
+          allowedKeys.push(key);
+          properties[key] = tool.parameters.properties[key];
+          if (tool.parameters.required?.includes(key)) {
+            required.push(key);
+          }
+        });
+      } else if (schema?.shape) {
+        // Fallback to Zod schema extraction
         Object.entries(schema.shape()).forEach(([key, field]: [string, any]) => {
           const fieldDef = field?._def;
           if (fieldDef) {
@@ -55,9 +65,24 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         });
       }
 
-      // Store allowed keys for this tool name
+      // Store allowed keys for this tool name (only if we found valid keys)
+      // Skip if keys look like internal parameters (e.g., parameters1_Value, parameters2_Value)
       if (tool.name && allowedKeys.length > 0 && this._toolAllowedKeys) {
-        this._toolAllowedKeys.set(tool.name, allowedKeys);
+        // Check if keys look like actual field names (not internal parameter placeholders)
+        const hasValidKeys = allowedKeys.some(key => {
+          // Valid keys should not be generic parameter placeholders
+          const isInvalid = key.match(/^parameters\d+_Value$/);
+          return !isInvalid;
+        });
+        
+        // Only store if we have valid-looking keys
+        // If all keys are invalid placeholders, skip filtering for this tool
+        if (hasValidKeys) {
+          this._toolAllowedKeys.set(tool.name, allowedKeys);
+          console.log(`[FusionChatModel] Stored allowed keys for ${tool.name}:`, allowedKeys);
+        } else {
+          console.log(`[FusionChatModel] Skipping schema filter for ${tool.name} - invalid keys:`, allowedKeys);
+        }
       }
 
       return {
@@ -190,18 +215,29 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       // Filter args to only include allowed keys from tool schema
       if (tc.name && this._toolAllowedKeys?.has(tc.name)) {
         const allowedKeys = this._toolAllowedKeys.get(tc.name)!;
-        filteredArgs = Object.keys(rawArgs)
-          .filter(key => allowedKeys.includes(key))
-          .reduce((obj: any, key) => {
-            obj[key] = rawArgs[key];
-            return obj;
-          }, {});
         
-        console.log(`[FusionChatModel] Filtered args for ${tc.name}:`, {
-          original: Object.keys(rawArgs),
-          allowed: allowedKeys,
-          filtered: Object.keys(filteredArgs)
-        });
+        // Only filter if we have valid keys (not internal parameter names)
+        const hasValidKeys = allowedKeys.some(key => 
+          !key.startsWith('parameters') || !key.includes('_Value')
+        );
+        
+        if (hasValidKeys && allowedKeys.length > 0) {
+          filteredArgs = Object.keys(rawArgs)
+            .filter(key => allowedKeys.includes(key))
+            .reduce((obj: any, key) => {
+              obj[key] = rawArgs[key];
+              return obj;
+            }, {});
+          
+          console.log(`[FusionChatModel] Filtered args for ${tc.name}:`, {
+            original: Object.keys(rawArgs),
+            allowed: allowedKeys,
+            filtered: Object.keys(filteredArgs)
+          });
+        } else {
+          // If schema extraction failed, don't filter (pass through all args)
+          console.log(`[FusionChatModel] Skipping filter for ${tc.name} - invalid schema keys:`, allowedKeys);
+        }
       }
       
       return {
