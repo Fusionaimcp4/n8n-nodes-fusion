@@ -32,7 +32,14 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         hasSchema: !!tool.schema,
         hasParameters: !!tool.parameters,
         schemaType: tool.schema?.constructor?.name,
-        toolKeys: Object.keys(tool || {})
+        toolKeys: Object.keys(tool || {}),
+        toolStringified: JSON.stringify(tool, (key, value) => {
+          // Avoid circular references
+          if (key === '_def' && typeof value === 'object' && value !== null) {
+            return '[ZodDef]';
+          }
+          return value;
+        }, 2)
       });
       
       // Get schema from tool
@@ -84,6 +91,12 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       // This ensures we filter based on the actual JSON Schema, not the Zod schema
       const finalAllowedKeys = Object.keys(properties);
       
+      console.log(`[FusionChatModel] Final properties for ${tool.name}:`, {
+        propertiesKeys: finalAllowedKeys,
+        properties: properties,
+        required: required
+      });
+      
       if (tool.name && finalAllowedKeys.length > 0 && this._toolAllowedKeys) {
         // Check if keys look like actual field names (not internal parameter placeholders)
         const hasValidKeys = finalAllowedKeys.some(key => {
@@ -92,14 +105,10 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
           return !isInvalid;
         });
         
-        // Only store if we have valid-looking keys
-        // If all keys are invalid placeholders, skip filtering for this tool
-        if (hasValidKeys) {
-          this._toolAllowedKeys.set(tool.name, finalAllowedKeys);
-          console.log(`[FusionChatModel] Stored allowed keys for ${tool.name}:`, finalAllowedKeys);
-        } else {
-          console.log(`[FusionChatModel] Skipping schema filter for ${tool.name} - invalid keys:`, finalAllowedKeys);
-        }
+        // Always store the keys - even if they look invalid, we'll handle filtering differently
+        // The issue is that n8n validates strictly, so we MUST filter
+        this._toolAllowedKeys.set(tool.name, finalAllowedKeys);
+        console.log(`[FusionChatModel] Stored allowed keys for ${tool.name}:`, finalAllowedKeys, `(hasValidKeys: ${hasValidKeys})`);
       }
 
       return {
@@ -233,12 +242,14 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       if (tc.name && this._toolAllowedKeys?.has(tc.name)) {
         const allowedKeys = this._toolAllowedKeys.get(tc.name)!;
         
-        // Only filter if we have valid keys (not internal parameter names)
-        const hasValidKeys = allowedKeys.some(key => 
-          !key.startsWith('parameters') || !key.includes('_Value')
-        );
+        // Check if keys look like actual field names (not internal parameter placeholders)
+        const hasValidKeys = allowedKeys.some(key => {
+          const isInvalid = key.match(/^parameters\d+_Value$/);
+          return !isInvalid;
+        });
         
         if (hasValidKeys && allowedKeys.length > 0) {
+          // Filter to only include valid keys
           filteredArgs = Object.keys(rawArgs)
             .filter(key => allowedKeys.includes(key))
             .reduce((obj: any, key) => {
@@ -252,9 +263,16 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
             filtered: Object.keys(filteredArgs)
           });
         } else {
-          // If schema extraction failed, don't filter (pass through all args)
-          console.log(`[FusionChatModel] Skipping filter for ${tc.name} - invalid schema keys:`, allowedKeys);
+          // If schema extraction got invalid keys, we still need to filter
+          // But we don't know the correct keys, so we can't filter properly
+          // This is a problem - we need the actual schema keys
+          console.log(`[FusionChatModel] WARNING: Invalid schema keys for ${tc.name}:`, allowedKeys);
+          console.log(`[FusionChatModel] Raw args keys:`, Object.keys(rawArgs));
+          // For now, pass through - but this will cause validation errors
+          // TODO: Find correct way to extract schema keys
         }
+      } else {
+        console.log(`[FusionChatModel] No schema keys stored for ${tc.name}, passing through all args`);
       }
       
       return {
