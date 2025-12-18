@@ -167,10 +167,18 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     
     console.log('[FusionChatModel] Raw tool calls from Fusion:', JSON.stringify(rawToolCalls, null, 2));
     
-    // Fusion backend already sends the correct LangChain format
-    const convertedToolCalls = rawToolCalls;
+    // Transform LangChain format ({ id, name, args }) to n8n's expected format
+    // n8n's AI Agent expects OpenAI-style: { id, type: "function", function: { name, arguments } }
+    const convertedToolCalls = rawToolCalls.map((tc: any) => ({
+      id: tc.id,
+      type: 'function',
+      function: {
+        name: tc.name,
+        arguments: tc.args ?? {},
+      },
+    }));
     
-    console.log('[FusionChatModel] Tool calls for LangChain:', JSON.stringify(convertedToolCalls, null, 2));
+    console.log('[FusionChatModel] Tool calls converted for n8n:', JSON.stringify(convertedToolCalls, null, 2));
 
     const message = new AIMessage({
       content: text,
