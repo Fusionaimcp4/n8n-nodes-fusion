@@ -84,17 +84,27 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
           }
         });
       } 
-      // Method 3: Zod schema extraction (fallback)
+      // Method 3: Zod schema extraction (LAST RESORT - tool.schema includes ALL node params)
+      // WARNING: tool.schema includes node configuration parameters, not just tool inputs
+      // We should filter out parameters1_Value, parameters2_Value, etc.
       else if (schema?.shape) {
-        console.log(`[FusionChatModel] Using schema.shape for ${tool.name}`);
+        console.log(`[FusionChatModel] WARNING: Using schema.shape for ${tool.name} - this includes ALL node params`);
+        console.log(`[FusionChatModel] This is NOT the correct source - will filter out node params`);
         // Fallback to Zod schema extraction
         const shape = schema.shape();
         console.log(`[FusionChatModel] Schema shape keys for ${tool.name}:`, Object.keys(shape || {}));
         
         Object.entries(shape || {}).forEach(([key, field]: [string, any]) => {
+          // Filter out node parameters (parameters1_Value, etc.)
+          const isNodeParam = key.match(/^parameters\d+_Value$/);
+          if (isNodeParam) {
+            console.log(`[FusionChatModel] Skipping node parameter: ${key}`);
+            return; // Skip node parameters
+          }
+          
           const fieldDef = field?._def;
           if (fieldDef) {
-            allowedKeys.push(key); // Capture allowed key
+            allowedKeys.push(key); // Capture allowed key (only tool inputs)
             properties[key] = {
               type: fieldDef.typeName === 'ZodString' ? 'string' :
                     fieldDef.typeName === 'ZodNumber' ? 'number' :
@@ -149,23 +159,28 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         }
       };
       
-      // Store the properties keys from the tool definition we're sending to Fusion
-      // This ensures we filter based on what we actually send, not what Zod gives us
+      // CRITICAL: Extract allowed keys from the parameters.properties we're sending to Fusion
+      // This is the correct source - it matches what Fusion will return
+      // DO NOT use tool.schema - that includes ALL node parameters, not just tool inputs
       const toolDefKeys = Object.keys(properties);
+      
       if (tool.name && toolDefKeys.length > 0 && this._toolAllowedKeys) {
-        // Check if keys are valid (not parameters1_Value etc.)
-        const hasValidKeys = toolDefKeys.some(key => {
+        // Filter out invalid keys (node parameters like parameters1_Value)
+        const validKeys = toolDefKeys.filter(key => {
           const isInvalid = key.match(/^parameters\d+_Value$/);
           return !isInvalid;
         });
         
-        if (hasValidKeys) {
-          // Store valid keys from tool definition
-          this._toolAllowedKeys.set(tool.name, toolDefKeys);
-          console.log(`[FusionChatModel] Stored tool definition keys for ${tool.name}:`, toolDefKeys);
+        if (validKeys.length > 0) {
+          // Store only valid keys (actual tool input fields)
+          this._toolAllowedKeys.set(tool.name, validKeys);
+          console.log(`[FusionChatModel] Stored valid tool input keys for ${tool.name}:`, validKeys);
+          console.log(`[FusionChatModel] Filtered out invalid keys:`, toolDefKeys.filter(k => !validKeys.includes(k)));
         } else {
-          // Invalid keys - don't store, will skip filtering
-          console.log(`[FusionChatModel] Invalid keys in tool definition for ${tool.name}, will skip filtering`);
+          // All keys were invalid - this means we're extracting from wrong source
+          console.log(`[FusionChatModel] WARNING: All keys invalid for ${tool.name} - schema extraction failed`);
+          console.log(`[FusionChatModel] All keys were:`, toolDefKeys);
+          // Don't store - will skip filtering (but this will cause validation errors)
         }
       }
       
