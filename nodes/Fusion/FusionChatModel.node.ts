@@ -27,6 +27,14 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     
     // Convert LangChain tools to OpenAI format
     this._boundTools = tools.map(tool => {
+      // Log tool structure for debugging
+      console.log(`[FusionChatModel] bindTools - Tool: ${tool.name}`, {
+        hasSchema: !!tool.schema,
+        hasParameters: !!tool.parameters,
+        schemaType: tool.schema?.constructor?.name,
+        toolKeys: Object.keys(tool || {})
+      });
+      
       // Get schema from tool
       const schema = tool.schema?._def;
       
@@ -37,6 +45,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
 
       // Try to get keys from tool.parameters first (if it's already a JSON Schema)
       if (tool.parameters?.properties && typeof tool.parameters.properties === 'object') {
+        console.log(`[FusionChatModel] Using tool.parameters for ${tool.name}`);
         Object.keys(tool.parameters.properties).forEach(key => {
           allowedKeys.push(key);
           properties[key] = tool.parameters.properties[key];
@@ -45,8 +54,12 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
           }
         });
       } else if (schema?.shape) {
+        console.log(`[FusionChatModel] Using schema.shape for ${tool.name}`);
         // Fallback to Zod schema extraction
-        Object.entries(schema.shape()).forEach(([key, field]: [string, any]) => {
+        const shape = schema.shape();
+        console.log(`[FusionChatModel] Schema shape keys for ${tool.name}:`, Object.keys(shape || {}));
+        
+        Object.entries(shape || {}).forEach(([key, field]: [string, any]) => {
           const fieldDef = field?._def;
           if (fieldDef) {
             allowedKeys.push(key); // Capture allowed key
@@ -63,13 +76,17 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
             }
           }
         });
+      } else {
+        console.log(`[FusionChatModel] No schema found for ${tool.name}, tool object:`, JSON.stringify(tool, null, 2));
       }
 
-      // Store allowed keys for this tool name (only if we found valid keys)
-      // Skip if keys look like internal parameters (e.g., parameters1_Value, parameters2_Value)
-      if (tool.name && allowedKeys.length > 0 && this._toolAllowedKeys) {
+      // Store allowed keys from the properties object we built (matches what we send to Fusion)
+      // This ensures we filter based on the actual JSON Schema, not the Zod schema
+      const finalAllowedKeys = Object.keys(properties);
+      
+      if (tool.name && finalAllowedKeys.length > 0 && this._toolAllowedKeys) {
         // Check if keys look like actual field names (not internal parameter placeholders)
-        const hasValidKeys = allowedKeys.some(key => {
+        const hasValidKeys = finalAllowedKeys.some(key => {
           // Valid keys should not be generic parameter placeholders
           const isInvalid = key.match(/^parameters\d+_Value$/);
           return !isInvalid;
@@ -78,10 +95,10 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         // Only store if we have valid-looking keys
         // If all keys are invalid placeholders, skip filtering for this tool
         if (hasValidKeys) {
-          this._toolAllowedKeys.set(tool.name, allowedKeys);
-          console.log(`[FusionChatModel] Stored allowed keys for ${tool.name}:`, allowedKeys);
+          this._toolAllowedKeys.set(tool.name, finalAllowedKeys);
+          console.log(`[FusionChatModel] Stored allowed keys for ${tool.name}:`, finalAllowedKeys);
         } else {
-          console.log(`[FusionChatModel] Skipping schema filter for ${tool.name} - invalid keys:`, allowedKeys);
+          console.log(`[FusionChatModel] Skipping schema filter for ${tool.name} - invalid keys:`, finalAllowedKeys);
         }
       }
 
