@@ -42,6 +42,17 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         }, 2)
       });
       
+      // Try to get JSON Schema from tool.toJSON() if available
+      let toolJsonSchema: any = null;
+      if (typeof tool.toJSON === 'function') {
+        try {
+          toolJsonSchema = tool.toJSON();
+          console.log(`[FusionChatModel] Tool ${tool.name} toJSON():`, JSON.stringify(toolJsonSchema, null, 2));
+        } catch (e) {
+          console.log(`[FusionChatModel] Tool ${tool.name} toJSON() failed:`, e);
+        }
+      }
+      
       // Get schema from tool
       const schema = tool.schema?._def;
       
@@ -50,8 +61,20 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       const required: string[] = [];
       const allowedKeys: string[] = [];
 
-      // Try to get keys from tool.parameters first (if it's already a JSON Schema)
-      if (tool.parameters?.properties && typeof tool.parameters.properties === 'object') {
+      // Try multiple methods to get the correct schema
+      // Method 1: tool.toJSON() schema
+      if (toolJsonSchema?.schema?.properties) {
+        console.log(`[FusionChatModel] Using tool.toJSON().schema for ${tool.name}`);
+        Object.keys(toolJsonSchema.schema.properties).forEach(key => {
+          allowedKeys.push(key);
+          properties[key] = toolJsonSchema.schema.properties[key];
+          if (toolJsonSchema.schema.required?.includes(key)) {
+            required.push(key);
+          }
+        });
+      }
+      // Method 2: tool.parameters (if it's already a JSON Schema)
+      else if (tool.parameters?.properties && typeof tool.parameters.properties === 'object') {
         console.log(`[FusionChatModel] Using tool.parameters for ${tool.name}`);
         Object.keys(tool.parameters.properties).forEach(key => {
           allowedKeys.push(key);
@@ -60,7 +83,9 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
             required.push(key);
           }
         });
-      } else if (schema?.shape) {
+      } 
+      // Method 3: Zod schema extraction (fallback)
+      else if (schema?.shape) {
         console.log(`[FusionChatModel] Using schema.shape for ${tool.name}`);
         // Fallback to Zod schema extraction
         const shape = schema.shape();
@@ -111,7 +136,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         console.log(`[FusionChatModel] Stored allowed keys for ${tool.name}:`, finalAllowedKeys, `(hasValidKeys: ${hasValidKeys})`);
       }
 
-      return {
+      const toolDefinition = {
         type: 'function',
         function: {
           name: tool.name,
@@ -123,6 +148,28 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
           }
         }
       };
+      
+      // Store the properties keys from the tool definition we're sending to Fusion
+      // This ensures we filter based on what we actually send, not what Zod gives us
+      const toolDefKeys = Object.keys(properties);
+      if (tool.name && toolDefKeys.length > 0 && this._toolAllowedKeys) {
+        // Check if keys are valid (not parameters1_Value etc.)
+        const hasValidKeys = toolDefKeys.some(key => {
+          const isInvalid = key.match(/^parameters\d+_Value$/);
+          return !isInvalid;
+        });
+        
+        if (hasValidKeys) {
+          // Store valid keys from tool definition
+          this._toolAllowedKeys.set(tool.name, toolDefKeys);
+          console.log(`[FusionChatModel] Stored tool definition keys for ${tool.name}:`, toolDefKeys);
+        } else {
+          // Invalid keys - don't store, will skip filtering
+          console.log(`[FusionChatModel] Invalid keys in tool definition for ${tool.name}, will skip filtering`);
+        }
+      }
+      
+      return toolDefinition;
     });
     return this;
   }
@@ -263,16 +310,20 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
             filtered: Object.keys(filteredArgs)
           });
         } else {
-          // If schema extraction got invalid keys, we still need to filter
-          // But we don't know the correct keys, so we can't filter properly
-          // This is a problem - we need the actual schema keys
+          // Schema extraction failed - got invalid keys like parameters1_Value
+          // Since we can't extract correct schema, use Fusion's args as-is
+          // Fusion returns what the tool expects, so these should be valid
+          // However, n8n might still reject if there are extra fields
           console.log(`[FusionChatModel] WARNING: Invalid schema keys for ${tc.name}:`, allowedKeys);
-          console.log(`[FusionChatModel] Raw args keys:`, Object.keys(rawArgs));
-          // For now, pass through - but this will cause validation errors
-          // TODO: Find correct way to extract schema keys
+          console.log(`[FusionChatModel] Using Fusion args as-is (no filtering):`, Object.keys(rawArgs));
+          // Don't filter - use Fusion's args directly
+          // This assumes Fusion only returns fields that match the tool schema
+          filteredArgs = rawArgs;
         }
       } else {
-        console.log(`[FusionChatModel] No schema keys stored for ${tc.name}, passing through all args`);
+        // No schema keys stored - use Fusion args as-is
+        console.log(`[FusionChatModel] No schema keys stored for ${tc.name}, using Fusion args as-is`);
+        filteredArgs = rawArgs;
       }
       
       return {
