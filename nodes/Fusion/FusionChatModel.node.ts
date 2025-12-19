@@ -22,7 +22,10 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   // Tool binding handled by n8n's AI Agent
   override bindTools(tools: any[]): this {
     // Convert LangChain tools to OpenAI format
+    // Preserve exact tool names from n8n - these are the source of truth for tool matching
+    console.log(`[FusionChatModel] bindTools called with ${tools.length} tools`);
     this._boundTools = tools.map(tool => {
+      console.log(`[FusionChatModel] Registering tool: "${tool.name}"`);
       // Get schema from tool
       const schema = tool.schema?._def;
       
@@ -52,7 +55,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       return {
         type: 'function',
         function: {
-          name: tool.name,
+          name: tool.name, // Preserve exact tool name from n8n - no transformation
           description: tool.description,
           parameters: {
             type: 'object',
@@ -62,6 +65,7 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         }
       };
     });
+    console.log(`[FusionChatModel] Bound tools registered: ${this._boundTools.map(t => t.function.name).join(', ')}`);
     return this;
   }
 
@@ -123,6 +127,9 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     if (this._boundTools?.length && !hasToolResults) {
       body.tools = this._boundTools;
       body.enable_tools = true;
+      console.log(`[FusionChatModel] Sending ${this._boundTools.length} tools to Fusion: ${this._boundTools.map(t => t.function.name).join(', ')}`);
+    } else {
+      console.log(`[FusionChatModel] Not sending tools - boundTools: ${this._boundTools?.length || 0}, hasToolResults: ${hasToolResults}`);
     }
 
     // Make API call with timeout and retry (matching LangChain behavior)
@@ -169,14 +176,43 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
     
     // Convert Fusion format { id, name, args } to OpenAI-canonical format for n8n ToolsAgent V2
     // OpenAI format: { id, type: 'function', function: { name, arguments: JSON.stringify(args) } }
-    const convertedToolCalls = rawToolCalls.map((tc: any) => ({
-      id: tc.id,
-      type: 'function',
-      function: {
-        name: tc.name,
-        arguments: JSON.stringify(tc.args ?? {})
+    // CRITICAL: Use exact tool name from bindTools() to ensure n8n can match tools by strict name equality
+    const convertedToolCalls = rawToolCalls.map((tc: any) => {
+      // Look up the exact tool name from _boundTools to ensure perfect match with n8n's registry
+      // n8n matches tools strictly by name equality, so we must use the exact name from bindTools()
+      let toolName = tc.name;
+      
+      if (this._boundTools && this._boundTools.length > 0) {
+        // Try exact match first
+        let boundTool = this._boundTools.find(t => t.function.name === tc.name);
+        
+        // If no exact match, try case-insensitive match (defensive)
+        if (!boundTool) {
+          boundTool = this._boundTools.find(t => 
+            t.function.name.toLowerCase() === tc.name.toLowerCase()
+          );
+        }
+        
+        if (boundTool) {
+          toolName = boundTool.function.name; // Use exact name from bindTools() - this is the source of truth
+          console.log(`[FusionChatModel] Tool name matched: Fusion returned "${tc.name}", using registered name "${toolName}"`);
+        } else {
+          console.warn(`[FusionChatModel] Tool name not found in bound tools: "${tc.name}". Available tools: ${this._boundTools.map(t => t.function.name).join(', ')}`);
+        }
+      } else {
+        console.warn(`[FusionChatModel] No bound tools available, using Fusion tool name: "${tc.name}"`);
       }
-    }));
+      
+      return {
+        id: tc.id,
+        type: 'function',
+        name: toolName, // Top-level name for n8n ToolsAgent V2 compatibility
+        function: {
+          name: toolName, // Exact name from bindTools() ensures n8n can match by name equality
+          arguments: JSON.stringify(tc.args ?? {})
+        }
+      };
+    });
     
     console.log('[FusionChatModel] Tool calls for LangChain (OpenAI-canonical):', JSON.stringify(convertedToolCalls, null, 2));
 
@@ -192,6 +228,21 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       tool_calls: convertedToolCalls,
       invalid_tool_calls: [],
     });
+
+    // Diagnostic logging: Check what LangChain actually stored
+    if (message.tool_calls && message.tool_calls.length > 0) {
+      console.log('[FusionChatModel] AIMessage.tool_calls after creation:', JSON.stringify(message.tool_calls, null, 2));
+      const firstTc = message.tool_calls[0] as any;
+      console.log('[FusionChatModel] First tool call properties:', {
+        id: firstTc?.id,
+        name: firstTc?.name,
+        type: firstTc?.type,
+        'function': firstTc?.function,
+        'function.name': firstTc?.function?.name,
+        'function.arguments': firstTc?.function?.arguments,
+        'allKeys': Object.keys(firstTc || {})
+      });
+    }
 
     const generation: ChatGeneration = {
       text,
