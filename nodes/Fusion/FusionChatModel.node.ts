@@ -235,17 +235,23 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       // Clean empty strings from arrays (e.g., attendees: [""] -> attendees: [])
       argsObj = normalizeToolArgs(argsObj);
       
-      return {
+      // Create tool call in format that matches LangChain's internal structure
+      // LangChain expects OpenAI format, but n8n ToolsAgent V2 also needs direct access to args
+      const toolCall: any = {
         id: tc.id,
         type: 'function',
         name: toolName, // Top-level name for n8n ToolsAgent V2 compatibility
         function: {
           name: toolName, // Exact name from bindTools() ensures n8n can match by name equality
           arguments: JSON.stringify(argsObj) // OpenAI format: JSON string
-        },
-        // Also add args as object for n8n ToolsAgent V2 compatibility (if it needs direct access)
-        args: argsObj
+        }
       };
+      
+      // Add args as object property for n8n ToolsAgent V2 schema validation
+      // n8n accesses tool_call.args directly for validation, not just function.arguments
+      toolCall.args = argsObj;
+      
+      return toolCall;
     });
     
     console.log('[FusionChatModel] Tool calls for LangChain (OpenAI-canonical):', JSON.stringify(convertedToolCalls, null, 2));
@@ -278,35 +284,49 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       });
       
       // CRITICAL FIX: Ensure tool calls have accessible name and args properties for n8n
-      // LangChain might not preserve top-level 'name' or 'args', so we need to ensure they're accessible
+      // LangChain might wrap tool calls, so we need to ensure properties are accessible
       // n8n ToolsAgent V2 looks for tool_call.name and tool_call.args for schema validation
-      message.tool_calls = message.tool_calls.map((tc: any) => {
-        const fixed: any = { ...tc };
-        
-        // Ensure name exists at top level
-        if (!fixed.name && fixed.function?.name) {
-          fixed.name = fixed.function.name;
-        }
-        
-        // Ensure args exists as object for n8n schema validation
-        // n8n ToolsAgent V2 needs args as an object (not just function.arguments as JSON string)
-        if (!fixed.args && fixed.function?.arguments) {
-          try {
-            fixed.args = typeof fixed.function.arguments === 'string' 
-              ? JSON.parse(fixed.function.arguments) 
-              : fixed.function.arguments;
-          } catch (e) {
-            console.warn(`[FusionChatModel] Failed to parse function.arguments: ${fixed.function.arguments}`, e);
-            fixed.args = {};
+      // We need to replace the tool_calls array with properly formatted objects
+      const fixedToolCalls = message.tool_calls.map((tc: any) => {
+        // Create a new plain object to ensure all properties are accessible
+        const fixed: any = {
+          id: tc.id || tc.function?.name,
+          type: tc.type || 'function',
+          name: tc.name || tc.function?.name,
+          function: {
+            name: tc.function?.name || tc.name,
+            arguments: tc.function?.arguments || JSON.stringify(tc.args || {})
           }
-        } else if (!fixed.args) {
-          fixed.args = {};
+        };
+        
+        // Parse and normalize args for n8n schema validation
+        let parsedArgs: any = {};
+        if (tc.args) {
+          parsedArgs = typeof tc.args === 'string' ? JSON.parse(tc.args) : tc.args;
+        } else if (tc.function?.arguments) {
+          try {
+            parsedArgs = typeof tc.function.arguments === 'string' 
+              ? JSON.parse(tc.function.arguments) 
+              : tc.function.arguments;
+          } catch (e) {
+            console.warn(`[FusionChatModel] Failed to parse function.arguments: ${tc.function.arguments}`, e);
+            parsedArgs = {};
+          }
         }
+        
+        // Normalize args (remove empty strings from arrays, etc.)
+        parsedArgs = normalizeToolArgs(parsedArgs);
+        
+        // Set args property for n8n ToolsAgent V2
+        fixed.args = parsedArgs;
         
         return fixed;
       });
       
-      console.log('[FusionChatModel] Tool calls after name fix:', JSON.stringify(message.tool_calls, null, 2));
+      // Replace the tool_calls array - this ensures n8n can access all properties
+      (message as any).tool_calls = fixedToolCalls;
+      
+      console.log('[FusionChatModel] Tool calls after normalization:', JSON.stringify(fixedToolCalls, null, 2));
     }
 
     const generation: ChatGeneration = {
