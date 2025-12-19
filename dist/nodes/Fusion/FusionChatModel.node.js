@@ -8,6 +8,29 @@ const n8n_workflow_1 = require("n8n-workflow");
 const chat_models_1 = require("@langchain/core/language_models/chat_models");
 const messages_1 = require("@langchain/core/messages");
 const node_fetch_1 = __importDefault(require("node-fetch"));
+// Normalize tool arguments to match n8n tool schema expectations
+// Removes empty strings from arrays, ensures proper types
+function normalizeToolArgs(args) {
+    if (!args || typeof args !== 'object') {
+        return args;
+    }
+    const normalized = {};
+    for (const [key, value] of Object.entries(args)) {
+        if (Array.isArray(value)) {
+            // Remove empty strings from arrays (e.g., attendees: [""] -> attendees: [])
+            normalized[key] = value.filter((item) => item !== '');
+        }
+        else if (value && typeof value === 'object' && !Array.isArray(value)) {
+            // Recursively normalize nested objects
+            normalized[key] = normalizeToolArgs(value);
+        }
+        else {
+            // Keep other values as-is
+            normalized[key] = value;
+        }
+    }
+    return normalized;
+}
 // Fusion LangChain chat model with tool-calling surface restored
 class FusionLangChainChat extends chat_models_1.BaseChatModel {
     get _supportsToolCalling() { return true; }
@@ -174,7 +197,10 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                 console.warn(`[FusionChatModel] No bound tools available, using Fusion tool name: "${tc.name}"`);
             }
             // Ensure args is always an object (not string) for schema validation
-            const argsObj = typeof tc.args === 'string' ? JSON.parse(tc.args) : (tc.args ?? {});
+            let argsObj = typeof tc.args === 'string' ? JSON.parse(tc.args) : (tc.args ?? {});
+            // Normalize args to match n8n tool schema expectations
+            // Clean empty strings from arrays (e.g., attendees: [""] -> attendees: [])
+            argsObj = normalizeToolArgs(argsObj);
             return {
                 id: tc.id,
                 type: 'function',

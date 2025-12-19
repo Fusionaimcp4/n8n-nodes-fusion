@@ -4,6 +4,31 @@ import { AIMessage, BaseMessage, ToolMessage } from '@langchain/core/messages';
 import { ChatResult, ChatGeneration } from '@langchain/core/outputs';
 import fetch from 'node-fetch';
 
+// Normalize tool arguments to match n8n tool schema expectations
+// Removes empty strings from arrays, ensures proper types
+function normalizeToolArgs(args: any): any {
+  if (!args || typeof args !== 'object') {
+    return args;
+  }
+  
+  const normalized: any = {};
+  
+  for (const [key, value] of Object.entries(args)) {
+    if (Array.isArray(value)) {
+      // Remove empty strings from arrays (e.g., attendees: [""] -> attendees: [])
+      normalized[key] = value.filter((item: any) => item !== '');
+    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      // Recursively normalize nested objects
+      normalized[key] = normalizeToolArgs(value);
+    } else {
+      // Keep other values as-is
+      normalized[key] = value;
+    }
+  }
+  
+  return normalized;
+}
+
 // Fusion LangChain chat model with tool-calling surface restored
 class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
   private model: string;
@@ -204,7 +229,11 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
       }
       
       // Ensure args is always an object (not string) for schema validation
-      const argsObj = typeof tc.args === 'string' ? JSON.parse(tc.args) : (tc.args ?? {});
+      let argsObj = typeof tc.args === 'string' ? JSON.parse(tc.args) : (tc.args ?? {});
+      
+      // Normalize args to match n8n tool schema expectations
+      // Clean empty strings from arrays (e.g., attendees: [""] -> attendees: [])
+      argsObj = normalizeToolArgs(argsObj);
       
       return {
         id: tc.id,
