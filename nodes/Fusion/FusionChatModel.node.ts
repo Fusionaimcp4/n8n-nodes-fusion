@@ -203,14 +203,19 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         console.warn(`[FusionChatModel] No bound tools available, using Fusion tool name: "${tc.name}"`);
       }
       
+      // Ensure args is always an object (not string) for schema validation
+      const argsObj = typeof tc.args === 'string' ? JSON.parse(tc.args) : (tc.args ?? {});
+      
       return {
         id: tc.id,
         type: 'function',
         name: toolName, // Top-level name for n8n ToolsAgent V2 compatibility
         function: {
           name: toolName, // Exact name from bindTools() ensures n8n can match by name equality
-          arguments: JSON.stringify(tc.args ?? {})
-        }
+          arguments: JSON.stringify(argsObj) // OpenAI format: JSON string
+        },
+        // Also add args as object for n8n ToolsAgent V2 compatibility (if it needs direct access)
+        args: argsObj
       };
     });
     
@@ -243,18 +248,33 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         'allKeys': Object.keys(firstTc || {})
       });
       
-      // CRITICAL FIX: Ensure tool calls have accessible name property for n8n
-      // LangChain might not preserve top-level 'name', so we need to ensure it's accessible
-      // n8n ToolsAgent V2 looks for tool_call.name, so we must ensure it exists
+      // CRITICAL FIX: Ensure tool calls have accessible name and args properties for n8n
+      // LangChain might not preserve top-level 'name' or 'args', so we need to ensure they're accessible
+      // n8n ToolsAgent V2 looks for tool_call.name and tool_call.args for schema validation
       message.tool_calls = message.tool_calls.map((tc: any) => {
-        // If name is missing at top level but exists in function, add it
-        if (!tc.name && tc.function?.name) {
-          return {
-            ...tc,
-            name: tc.function.name
-          };
+        const fixed: any = { ...tc };
+        
+        // Ensure name exists at top level
+        if (!fixed.name && fixed.function?.name) {
+          fixed.name = fixed.function.name;
         }
-        return tc;
+        
+        // Ensure args exists as object for n8n schema validation
+        // n8n ToolsAgent V2 needs args as an object (not just function.arguments as JSON string)
+        if (!fixed.args && fixed.function?.arguments) {
+          try {
+            fixed.args = typeof fixed.function.arguments === 'string' 
+              ? JSON.parse(fixed.function.arguments) 
+              : fixed.function.arguments;
+          } catch (e) {
+            console.warn(`[FusionChatModel] Failed to parse function.arguments: ${fixed.function.arguments}`, e);
+            fixed.args = {};
+          }
+        } else if (!fixed.args) {
+          fixed.args = {};
+        }
+        
+        return fixed;
       });
       
       console.log('[FusionChatModel] Tool calls after name fix:', JSON.stringify(message.tool_calls, null, 2));
