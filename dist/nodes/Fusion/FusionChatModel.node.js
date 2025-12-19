@@ -8,33 +8,6 @@ const n8n_workflow_1 = require("n8n-workflow");
 const chat_models_1 = require("@langchain/core/language_models/chat_models");
 const messages_1 = require("@langchain/core/messages");
 const node_fetch_1 = __importDefault(require("node-fetch"));
-// Normalize tool arguments to match n8n tool schema expectations
-// Removes empty strings from arrays, ensures proper types
-// IMPORTANT: Only normalize what's necessary - don't change types that Zod expects
-function normalizeToolArgs(args) {
-    if (!args || typeof args !== 'object') {
-        return args;
-    }
-    const normalized = {};
-    for (const [key, value] of Object.entries(args)) {
-        if (Array.isArray(value)) {
-            // Remove empty strings from arrays (e.g., attendees: [""] -> attendees: [])
-            // But preserve the array structure and other valid values
-            const filtered = value.filter((item) => item !== '');
-            normalized[key] = filtered;
-        }
-        else if (value && typeof value === 'object' && !Array.isArray(value)) {
-            // Recursively normalize nested objects
-            normalized[key] = normalizeToolArgs(value);
-        }
-        else {
-            // Keep other values as-is (booleans, strings, numbers, null, undefined)
-            // Don't change types - Zod schema validation is strict about types
-            normalized[key] = value;
-        }
-    }
-    return normalized;
-}
 // Fusion LangChain chat model with tool-calling surface restored
 class FusionLangChainChat extends chat_models_1.BaseChatModel {
     get _supportsToolCalling() { return true; }
@@ -43,10 +16,7 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
     // Tool binding handled by n8n's AI Agent
     bindTools(tools) {
         // Convert LangChain tools to OpenAI format
-        // Preserve exact tool names from n8n - these are the source of truth for tool matching
-        console.log(`[FusionChatModel] bindTools called with ${tools.length} tools`);
         this._boundTools = tools.map(tool => {
-            console.log(`[FusionChatModel] Registering tool: "${tool.name}"`);
             // Get schema from tool
             const schema = tool.schema?._def;
             // Convert Zod schema to JSON Schema
@@ -82,7 +52,6 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                 }
             };
         });
-        console.log(`[FusionChatModel] Bound tools registered: ${this._boundTools.map(t => t.function.name).join(', ')}`);
         return this;
     }
     constructor(args) {
@@ -135,10 +104,6 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         if (this._boundTools?.length && !hasToolResults) {
             body.tools = this._boundTools;
             body.enable_tools = true;
-            console.log(`[FusionChatModel] Sending ${this._boundTools.length} tools to Fusion: ${this._boundTools.map(t => t.function.name).join(', ')}`);
-        }
-        else {
-            console.log(`[FusionChatModel] Not sending tools - boundTools: ${this._boundTools?.length || 0}, hasToolResults: ${hasToolResults}`);
         }
         // Make API call with timeout and retry (matching LangChain behavior)
         let res;
@@ -175,53 +140,9 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
         const text = data?.response?.text ?? '';
         const rawToolCalls = data?.response?.tool_calls ?? [];
         console.log('[FusionChatModel] Raw tool calls from Fusion:', JSON.stringify(rawToolCalls, null, 2));
-        // Convert Fusion format { id, name, args } to OpenAI-canonical format for n8n ToolsAgent V2
-        // OpenAI format: { id, type: 'function', function: { name, arguments: JSON.stringify(args) } }
-        // CRITICAL: Use exact tool name from bindTools() to ensure n8n can match tools by strict name equality
-        const convertedToolCalls = rawToolCalls.map((tc) => {
-            // Look up the exact tool name from _boundTools to ensure perfect match with n8n's registry
-            // n8n matches tools strictly by name equality, so we must use the exact name from bindTools()
-            let toolName = tc.name;
-            if (this._boundTools && this._boundTools.length > 0) {
-                // Try exact match first
-                let boundTool = this._boundTools.find(t => t.function.name === tc.name);
-                // If no exact match, try case-insensitive match (defensive)
-                if (!boundTool) {
-                    boundTool = this._boundTools.find(t => t.function.name.toLowerCase() === tc.name.toLowerCase());
-                }
-                if (boundTool) {
-                    toolName = boundTool.function.name; // Use exact name from bindTools() - this is the source of truth
-                    console.log(`[FusionChatModel] Tool name matched: Fusion returned "${tc.name}", using registered name "${toolName}"`);
-                }
-                else {
-                    console.warn(`[FusionChatModel] Tool name not found in bound tools: "${tc.name}". Available tools: ${this._boundTools.map(t => t.function.name).join(', ')}`);
-                }
-            }
-            else {
-                console.warn(`[FusionChatModel] No bound tools available, using Fusion tool name: "${tc.name}"`);
-            }
-            // Ensure args is always an object (not string) for schema validation
-            let argsObj = typeof tc.args === 'string' ? JSON.parse(tc.args) : (tc.args ?? {});
-            // Normalize args to match n8n tool schema expectations
-            // Clean empty strings from arrays (e.g., attendees: [""] -> attendees: [])
-            argsObj = normalizeToolArgs(argsObj);
-            // Create tool call in format that matches LangChain's internal structure
-            // LangChain expects OpenAI format, but n8n ToolsAgent V2 also needs direct access to args
-            const toolCall = {
-                id: tc.id,
-                type: 'function',
-                name: toolName,
-                function: {
-                    name: toolName,
-                    arguments: JSON.stringify(argsObj) // OpenAI format: JSON string
-                }
-            };
-            // Add args as object property for n8n ToolsAgent V2 schema validation
-            // n8n accesses tool_call.args directly for validation, not just function.arguments
-            toolCall.args = argsObj;
-            return toolCall;
-        });
-        console.log('[FusionChatModel] Tool calls for LangChain (OpenAI-canonical):', JSON.stringify(convertedToolCalls, null, 2));
+        // Fusion backend already sends the correct LangChain format
+        const convertedToolCalls = rawToolCalls;
+        console.log('[FusionChatModel] Tool calls for LangChain:', JSON.stringify(convertedToolCalls, null, 2));
         const message = new messages_1.AIMessage({
             content: text,
             additional_kwargs: {},
@@ -234,66 +155,6 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
             tool_calls: convertedToolCalls,
             invalid_tool_calls: [],
         });
-        // Diagnostic logging: Check what LangChain actually stored
-        if (message.tool_calls && message.tool_calls.length > 0) {
-            console.log('[FusionChatModel] AIMessage.tool_calls after creation:', JSON.stringify(message.tool_calls, null, 2));
-            const firstTc = message.tool_calls[0];
-            console.log('[FusionChatModel] First tool call properties:', {
-                id: firstTc?.id,
-                name: firstTc?.name,
-                type: firstTc?.type,
-                'function': firstTc?.function,
-                'function.name': firstTc?.function?.name,
-                'function.arguments': firstTc?.function?.arguments,
-                'allKeys': Object.keys(firstTc || {})
-            });
-            // CRITICAL FIX: n8n ToolsAgent V2 validates tool arguments against Zod schema
-            // The validation happens on the args property, so we need to ensure:
-            // 1. args is a plain object (not a class instance)
-            // 2. args matches the Zod schema exactly (types, structure)
-            // 3. args is normalized (no empty strings in arrays, etc.)
-            // We replace the tool_calls array to ensure n8n can access all properties correctly
-            const fixedToolCalls = message.tool_calls.map((tc) => {
-                // Parse arguments from function.arguments (JSON string) or use existing args
-                let parsedArgs = {};
-                if (tc.args && typeof tc.args === 'object') {
-                    // Use existing args if it's already an object
-                    parsedArgs = tc.args;
-                }
-                else if (tc.function?.arguments) {
-                    try {
-                        parsedArgs = typeof tc.function.arguments === 'string'
-                            ? JSON.parse(tc.function.arguments)
-                            : tc.function.arguments;
-                    }
-                    catch (e) {
-                        console.warn(`[FusionChatModel] Failed to parse function.arguments: ${tc.function.arguments}`, e);
-                        parsedArgs = {};
-                    }
-                }
-                // Normalize args to match schema expectations (remove empty strings from arrays, etc.)
-                parsedArgs = normalizeToolArgs(parsedArgs);
-                // Create a new plain object matching LangChain's expected structure
-                // n8n ToolsAgent V2 validates using the original tool's Zod schema
-                // It expects: { id, type, name, function: { name, arguments }, args }
-                const fixed = {
-                    id: tc.id,
-                    type: tc.type || 'function',
-                    name: tc.name || tc.function?.name,
-                    function: {
-                        name: tc.function?.name || tc.name,
-                        arguments: tc.function?.arguments || JSON.stringify(parsedArgs)
-                    },
-                    // args must be a plain object for Zod schema validation
-                    args: parsedArgs
-                };
-                return fixed;
-            });
-            // Replace the tool_calls array - this ensures n8n can access all properties
-            // and validates against the Zod schema correctly
-            message.tool_calls = fixedToolCalls;
-            console.log('[FusionChatModel] Tool calls after normalization:', JSON.stringify(fixedToolCalls, null, 2));
-        }
         const generation = {
             text,
             message,
