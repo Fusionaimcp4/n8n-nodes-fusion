@@ -10,6 +10,7 @@ const messages_1 = require("@langchain/core/messages");
 const node_fetch_1 = __importDefault(require("node-fetch"));
 // Normalize tool arguments to match n8n tool schema expectations
 // Removes empty strings from arrays, ensures proper types
+// IMPORTANT: Only normalize what's necessary - don't change types that Zod expects
 function normalizeToolArgs(args) {
     if (!args || typeof args !== 'object') {
         return args;
@@ -18,14 +19,17 @@ function normalizeToolArgs(args) {
     for (const [key, value] of Object.entries(args)) {
         if (Array.isArray(value)) {
             // Remove empty strings from arrays (e.g., attendees: [""] -> attendees: [])
-            normalized[key] = value.filter((item) => item !== '');
+            // But preserve the array structure and other valid values
+            const filtered = value.filter((item) => item !== '');
+            normalized[key] = filtered;
         }
         else if (value && typeof value === 'object' && !Array.isArray(value)) {
             // Recursively normalize nested objects
             normalized[key] = normalizeToolArgs(value);
         }
         else {
-            // Keep other values as-is
+            // Keep other values as-is (booleans, strings, numbers, null, undefined)
+            // Don't change types - Zod schema validation is strict about types
             normalized[key] = value;
         }
     }
@@ -243,25 +247,18 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                 'function.arguments': firstTc?.function?.arguments,
                 'allKeys': Object.keys(firstTc || {})
             });
-            // CRITICAL FIX: Ensure tool calls have accessible name and args properties for n8n
-            // LangChain might wrap tool calls, so we need to ensure properties are accessible
-            // n8n ToolsAgent V2 looks for tool_call.name and tool_call.args for schema validation
-            // We need to replace the tool_calls array with properly formatted objects
+            // CRITICAL FIX: n8n ToolsAgent V2 validates tool arguments against Zod schema
+            // The validation happens on the args property, so we need to ensure:
+            // 1. args is a plain object (not a class instance)
+            // 2. args matches the Zod schema exactly (types, structure)
+            // 3. args is normalized (no empty strings in arrays, etc.)
+            // We replace the tool_calls array to ensure n8n can access all properties correctly
             const fixedToolCalls = message.tool_calls.map((tc) => {
-                // Create a new plain object to ensure all properties are accessible
-                const fixed = {
-                    id: tc.id || tc.function?.name,
-                    type: tc.type || 'function',
-                    name: tc.name || tc.function?.name,
-                    function: {
-                        name: tc.function?.name || tc.name,
-                        arguments: tc.function?.arguments || JSON.stringify(tc.args || {})
-                    }
-                };
-                // Parse and normalize args for n8n schema validation
+                // Parse arguments from function.arguments (JSON string) or use existing args
                 let parsedArgs = {};
-                if (tc.args) {
-                    parsedArgs = typeof tc.args === 'string' ? JSON.parse(tc.args) : tc.args;
+                if (tc.args && typeof tc.args === 'object') {
+                    // Use existing args if it's already an object
+                    parsedArgs = tc.args;
                 }
                 else if (tc.function?.arguments) {
                     try {
@@ -274,13 +271,26 @@ class FusionLangChainChat extends chat_models_1.BaseChatModel {
                         parsedArgs = {};
                     }
                 }
-                // Normalize args (remove empty strings from arrays, etc.)
+                // Normalize args to match schema expectations (remove empty strings from arrays, etc.)
                 parsedArgs = normalizeToolArgs(parsedArgs);
-                // Set args property for n8n ToolsAgent V2
-                fixed.args = parsedArgs;
+                // Create a new plain object matching LangChain's expected structure
+                // n8n ToolsAgent V2 validates using the original tool's Zod schema
+                // It expects: { id, type, name, function: { name, arguments }, args }
+                const fixed = {
+                    id: tc.id,
+                    type: tc.type || 'function',
+                    name: tc.name || tc.function?.name,
+                    function: {
+                        name: tc.function?.name || tc.name,
+                        arguments: tc.function?.arguments || JSON.stringify(parsedArgs)
+                    },
+                    // args must be a plain object for Zod schema validation
+                    args: parsedArgs
+                };
                 return fixed;
             });
             // Replace the tool_calls array - this ensures n8n can access all properties
+            // and validates against the Zod schema correctly
             message.tool_calls = fixedToolCalls;
             console.log('[FusionChatModel] Tool calls after normalization:', JSON.stringify(fixedToolCalls, null, 2));
         }
