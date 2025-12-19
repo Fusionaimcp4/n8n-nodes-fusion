@@ -242,6 +242,22 @@ class FusionLangChainChat extends BaseChatModel<BaseChatModelCallOptions> {
         'function.arguments': firstTc?.function?.arguments,
         'allKeys': Object.keys(firstTc || {})
       });
+      
+      // CRITICAL FIX: Ensure tool calls have accessible name property for n8n
+      // LangChain might not preserve top-level 'name', so we need to ensure it's accessible
+      // n8n ToolsAgent V2 looks for tool_call.name, so we must ensure it exists
+      message.tool_calls = message.tool_calls.map((tc: any) => {
+        // If name is missing at top level but exists in function, add it
+        if (!tc.name && tc.function?.name) {
+          return {
+            ...tc,
+            name: tc.function.name
+          };
+        }
+        return tc;
+      });
+      
+      console.log('[FusionChatModel] Tool calls after name fix:', JSON.stringify(message.tool_calls, null, 2));
     }
 
     const generation: ChatGeneration = {
